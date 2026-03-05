@@ -1,0 +1,28 @@
+[project]
+name = "otimizacao-2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastai>=2.8.7",
+    "ipython>=9.10.0",
+    "opencv-python>=4.13.0.92",
+    "pymoo==0.6.1.5",
+    "wakepy>=1.0.0",
+    "torch>=2.9.1",
+    "torchvision>=0.24.1"
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+  { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
