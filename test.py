@@ -5,29 +5,19 @@ from mestradolib.utils import *
 from mestradolib.visual import *
 from mestradolib.run import *
 import numpy as np
-
-
-# n01440764	Tench (peixe)
-# n02102040	English Springer (cachorro)
-# n02979186	Cassette Player
-# n03000684	Chain Saw
-# n03028079	Church
-# n03394916	French Horn
-# n03417042	Garbage Truck
-# n03425413	Gas Pump
-# n03445777	Golf Ball
-# n03888257	Parachute
-
+from fastai.vision.all import vgg16_bn, resnet18
 
 if __name__ == "__main__":
     reproducibility()
 
     data = get_imagenette_loader()
 
-    learner = get_learner(data, ds_name="imagenette")
+    learner = get_learner(
+        data, model_arch=resnet18, name="resnet18", ds_name="imagenette"
+    )
 
-    idxs = [1354]  # , 0, 60, 99, 95, 63, 65]
-    # idxs = np.random.randint(0, len(data.train_ds), size=6000)
+    idxs = [1130, 95]  # , 0, 60, 99, 95, 63, 65]
+    # idxs = np.random.randint(0, len(data.valid_ds), size=200)
     problems = [
         MenorProbalidadeMenorAreaVectorized(
             4,
@@ -36,10 +26,6 @@ if __name__ == "__main__":
             problem_heatmap=create_rectangle_heatmap,
             problem_probability_heatmap=create_rectangle_probability_heatmap,
             problem_name="menor_probabilidade_menor_area_v",
-            xl=None,
-            xu=None,
-            mutation=None,
-            crossover=None,
         ),
         PoligonoEPerimetroVectorized(
             10,
@@ -65,6 +51,12 @@ if __name__ == "__main__":
             problem_probability_heatmap=create_polygonal_probability_heatmap,
             problem_name="poligono_e_perimetro_com_inpaint_v",
         ),
+        IPHAFlavioMarceloVectorized(
+            problem_best_image=create_mask_best_image,
+            problem_heatmap=create_mask_heatmap,
+            problem_probability_heatmap=create_mask_probability_heatmap,
+            problem_name="ipha_flavio_marcelo_v",
+        ),
     ]
     apply_methods = [
         apply_black_heatmap,
@@ -72,5 +64,5 @@ if __name__ == "__main__":
         apply_cutting_heatmap,
     ]
 
-    folder_name = "results/results_after_1"
-    run_test(folder_name, idxs, problems, learner, data)
+    folder_name = "results/results_imagenette_all"
+    run_test(folder_name, idxs, problems, learner, data, threshold=0.1, parallel=False)

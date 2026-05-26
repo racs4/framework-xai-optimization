@@ -11,7 +11,11 @@ dependencies = [
     "pymoo==0.6.1.5",
     "wakepy>=1.0.0",
     "torch>=2.9.1",
-    "torchvision>=0.24.1"
+    "torchvision>=0.24.1",
+    "ipykernel>=7.2.0",
+    "seaborn>=0.13.2",
+    "captum>=0.7.0",
+    "transformers>=5.9.0",
 ]
 
 [[tool.uv.index]]

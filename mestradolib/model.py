@@ -58,6 +58,17 @@ def get_cifar10_loader() -> DataLoaders:
     return dls
 
 
+def get_stanford_cars_loader() -> DataLoaders:
+    device = get_device()
+    default_device(device)
+    defaults.device = device
+    path = untar_data(URLs.CARS)
+    dls = ImageDataLoaders.from_folder(
+        path, seed=42, item_tfms=Resize(128), valid_pct=0.2, device=device, bs=200
+    )
+    return dls
+
+
 def get_learner(
     dls: DataLoaders,
     model_arch=resnet18,
@@ -72,7 +83,7 @@ def get_learner(
     # check if learner is saved in the current directory
     if (Path.cwd() / f"{ds_name}_{name}_learner.pth").exists():
         learn = vision_learner(dls, model_arch, metrics=accuracy)
-        learn.load(f"{ds_name}_{name}_learner.pth")
+        learn.load(f"./{ds_name}_{name}_learner.pth")
         learn.model.cuda(0)
         return learn
 

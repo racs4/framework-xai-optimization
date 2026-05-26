@@ -32,6 +32,7 @@ class EvaluationObject:
         problem_heatmap=None,
         problem_probability_heatmap=None,
         problem_name=None,
+        dynamic_variables=False,
     ):
         self.n_var = n_var
         self.n_obj = n_obj
@@ -47,6 +48,7 @@ class EvaluationObject:
         self.problem_heatmap = problem_heatmap
         self.problem_probability_heatmap = problem_probability_heatmap
         self.problem_name = problem_name
+        self.dynamic_variables = dynamic_variables
 
     def add_img(self, img: Image.Image):
         pass
@@ -95,7 +97,7 @@ def minimize_rectangle_problem(
         mutation=evaluation_object.get_mutation(),
     )
 
-    res = minimize(problem, algorithm, ("n_gen", 20), seed=42, verbose=True)
+    res = minimize(problem, algorithm, ("n_gen", 10), seed=42, verbose=False)
 
     return res
 
@@ -552,6 +554,66 @@ class IPHAFlavioMarceloInverseVectorized(EvaluationObject):
         )
 
         result = prob_img_original - prob_imgs_com_mascara
+        out["F"] = result
+
+
+class IPHAFlavioMarceloVectorized(EvaluationObject):
+    def __init__(
+        self,
+        mutation=None,
+        crossover=None,
+        problem_best_image=None,
+        problem_heatmap=None,
+        problem_probability_heatmap=None,
+        problem_name=None,
+    ):
+        super().__init__(
+            0,
+            1,
+            0,
+            1,
+            mutation,
+            crossover,
+            problem_best_image,
+            problem_heatmap,
+            problem_probability_heatmap,
+            problem_name,
+            dynamic_variables=True,
+        )
+
+    def evaluate(
+        self,
+        x,
+        out,
+        img: Image.Image,
+        prob_img_original: float,
+        pred_idx_original: int,
+        model: Learner,
+        *args,
+        **kwargs,
+    ):
+        # tfms = model.dls.valid.after_item
+
+        model_torch = model.model
+        model_torch.eval()
+        model_torch.to(device=model.dls.device)
+
+        images = [mask(img, xi) for xi in x]
+
+        dl = model.dls.test_dl(images)
+        images_tensor = dl.one_batch()[0]
+        images_tensor = images_tensor.to(device=model.dls.device).float()
+
+        prob_imgs_com_mascara = []
+        with torch.no_grad():
+            outputs = model_torch(images_tensor)
+            prob_imgs_com_mascara = torch.softmax(outputs, dim=1)
+
+        prob_imgs_com_mascara = (
+            prob_imgs_com_mascara[:, pred_idx_original].cpu().numpy()
+        )
+
+        result = prob_imgs_com_mascara - prob_img_original
         out["F"] = result
 
 

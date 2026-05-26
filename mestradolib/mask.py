@@ -4,6 +4,12 @@ import numpy as np
 
 def mask(img, mask, color="black"):
     new_img = img.copy()
+
+    # reshape mask to be 2D instead of 1D
+    if len(mask.shape) == 1:
+        mask = mask.reshape(img.size[1], img.size[0])
+
+    mask = (mask > 0).astype(np.uint8) * 255
     mask = Image.fromarray(mask).convert("L")
     new_img.paste(color, mask=mask)
     return new_img

@@ -23,7 +23,7 @@ def get_masked_image_and_show(
     create_heatmap_function: callable,
     apply_heatmap_function: callable,
 ) -> None:
-    img_res = get_masked_image(
+    img_res, _ = get_masked_image(
         img, res, threshold, create_heatmap_function, apply_heatmap_function
     )
     show_image(img_res, title="Masked Image")
@@ -75,7 +75,11 @@ def get_masked_image(
     if title is not None:
         img_res = add_title_to_image(img_res, title, font_size, font_pos)
 
-    return img_res
+    area = np.sum(heatmap_solutions) / (
+        heatmap_solutions.shape[0] * heatmap_solutions.shape[1]
+    )
+
+    return img_res, area
 
 
 def get_masked_image_with_score(
@@ -90,7 +94,7 @@ def get_masked_image_with_score(
     font_size=None,
     font_pos=(10, 5),
 ) -> Image.Image:
-    masked_image = get_masked_image(
+    masked_image, area = get_masked_image(
         img, res, threshold, create_heatmap_function, apply_heatmap_function
     )
     masked_image_score, _ = get_img_score(learner, masked_image, original_idx)
@@ -102,6 +106,7 @@ def get_masked_image_with_score(
             font_pos,
         ),
         masked_image_score,
+        area,
     )
 
 
@@ -114,9 +119,10 @@ def minimize_rectangle_problem_and_get_masked_image(
     apply_heatmap_function,
 ) -> Image.Image:
     res = minimize_rectangle_problem(img, evaluation_object, learner)
-    return get_masked_image(
+    masked_image, _ = get_masked_image(
         img, res, threshold, create_heatmap_function, apply_heatmap_function
     )
+    return masked_image
 
 
 def show_rectangle(img: Image.Image, rect: list[int]) -> Image.Image:
@@ -341,14 +347,41 @@ def show_pareto_front(
     plt.show()
 
 
+def create_mask_best_image(
+    img: Image.Image, res: Result, f: callable = None
+) -> np.ndarray:
+    # Create a blank heatmap
+    heatmap_solutions = np.zeros((img.height, img.width), dtype=np.int32)
+
+    # Mark pixels from best solution
+    # get image with highest first objective value
+    solution = res.X
+
+    # Se tiver mais que uma solucao, pega uma
+    if res.X.ndim == 2:
+        solution = res.X[0]
+
+    if f is not None:
+        f(solution, heatmap_solutions)
+    else:
+        mask = np.array(solution, dtype=bool).reshape((img.width, img.height))
+        heatmap_solutions += mask.T.astype(np.int32)
+
+    return heatmap_solutions
+
+
 def create_mask_heatmap(
     img: Image.Image, res: Result, f: callable = None
 ) -> np.ndarray:
     # Create a blank heatmap
     heatmap_solutions = np.zeros((img.height, img.width), dtype=np.int32)
 
+    # Se tiver mais que uma solucao, pega uma
+    if res.X.ndim == 2:
+        res.X = res.X[0]
+
     # Mark pixels from non-dominated solutions
-    for solution in res.X:  # type: ignore
+    for solution in [res.X]:  # type: ignore
         if f is not None:
             f(solution, heatmap_solutions)
         else:
@@ -368,10 +401,15 @@ def create_mask_probability_heatmap(
     # Create a blank heatmap
     heatmap_solutions = np.zeros((img.height, img.width), dtype=np.float64)
 
+    # Se tiver mais que uma solucao, pega uma
+    if res.X.ndim == 2:
+        res.X = res.X[0]
+        res.F = res.F[0]
+
     # Mark pixels from non-dominated solutions
-    for i in range(len(res.X)):  # type: ignore
-        solution = res.X[i]
-        objective = res.F[i]
+    for i in range(len([res.X])):  # type: ignore
+        solution = [res.X][i]
+        objective = [res.F][i]
         if f is not None:
             f(solution, heatmap_solutions)
         else:
