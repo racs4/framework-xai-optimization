@@ -16,6 +16,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "captum>=0.7.0",
     "transformers>=5.9.0",
+    "pyrecorder>=0.2.1",
 ]
 
 [[tool.uv.index]]

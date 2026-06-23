@@ -1,6 +1,7 @@
 import numpy as np
-from mestradolib.model import get_img_score
+from mestradolib.model import ModelWrapper, get_img_score
 from mestradolib.problems import EvaluationObject, minimize_rectangle_problem
+from mestradolib.mask import mask_from_integers
 from PIL import Image, ImageDraw, ImageFont
 from pymoo.core.result import Result
 from fastai.learner import Learner
@@ -58,7 +59,7 @@ def get_masked_image(
     title: str | None = None,
     font_size=None,
     font_pos=(10, 5),
-) -> Image.Image:
+) -> tuple[Image.Image, float]:
     heatmap = create_heatmap_function(img, res)
 
     max_value = np.max(heatmap)
@@ -70,14 +71,10 @@ def get_masked_image(
 
     heatmap_solutions = (heatmap >= threshold_value).astype(np.int32)
 
-    img_res = apply_heatmap_function(img, heatmap_solutions)
+    img_res, area = apply_heatmap_function(img, heatmap_solutions)
 
     if title is not None:
         img_res = add_title_to_image(img_res, title, font_size, font_pos)
-
-    area = np.sum(heatmap_solutions) / (
-        heatmap_solutions.shape[0] * heatmap_solutions.shape[1]
-    )
 
     return img_res, area
 
@@ -88,7 +85,7 @@ def get_masked_image_with_score(
     threshold: float,
     create_heatmap_function: callable,
     apply_heatmap_function: callable,
-    learner: Learner,
+    model_wrapper: ModelWrapper,
     original_score: float,
     original_idx: int,
     font_size=None,
@@ -97,7 +94,7 @@ def get_masked_image_with_score(
     masked_image, area = get_masked_image(
         img, res, threshold, create_heatmap_function, apply_heatmap_function
     )
-    masked_image_score, _ = get_img_score(learner, masked_image, original_idx)
+    masked_image_score, _ = model_wrapper.get_img_score(masked_image, original_idx)
     return (
         add_title_to_image(
             masked_image,
@@ -364,8 +361,8 @@ def create_mask_best_image(
     if f is not None:
         f(solution, heatmap_solutions)
     else:
-        mask = np.array(solution, dtype=bool).reshape((img.width, img.height))
-        heatmap_solutions += mask.T.astype(np.int32)
+        mask = mask_from_integers(solution, img.size).astype(bool)
+        heatmap_solutions += mask
 
     return heatmap_solutions
 
@@ -385,8 +382,8 @@ def create_mask_heatmap(
         if f is not None:
             f(solution, heatmap_solutions)
         else:
-            mask = np.array(solution, dtype=bool).reshape((img.width, img.height))
-            heatmap_solutions += mask.T.astype(np.int32)
+            mask = mask_from_integers(solution, img.size).astype(bool)
+            heatmap_solutions += mask
 
     return heatmap_solutions
 
@@ -413,8 +410,8 @@ def create_mask_probability_heatmap(
         if f is not None:
             f(solution, heatmap_solutions)
         else:
-            mask = np.array(solution, dtype=bool).reshape((img.width, img.height))
-            heatmap_solutions += mask.T.astype(np.float64) * (-objective[0])
+            mask = mask_from_integers(solution, img.size).astype(bool)
+            heatmap_solutions += mask * (-objective[0])
 
     return heatmap_solutions
 
@@ -425,7 +422,9 @@ def show_mask_probability_heatmap(
     show_any_heatmap_result(img, res, create_mask_probability_heatmap, f)
 
 
-def apply_black_heatmap(img: Image.Image, heatmap_solutions: np.ndarray) -> Image.Image:
+def apply_black_heatmap(
+    img: Image.Image, heatmap_solutions: np.ndarray
+) -> tuple[Image.Image, float]:
     # Create a copy of the original image to avoid modifying it
     img_copy = img.copy()
     img_array = np.array(img_copy)
@@ -438,12 +437,14 @@ def apply_black_heatmap(img: Image.Image, heatmap_solutions: np.ndarray) -> Imag
 
     # Convert back to PIL Image
     img_result = Image.fromarray(img_array)
-    return img_result
+    # Calculate the total area of the masked region
+    total_area = np.sum(mask) / (mask.shape[0] * mask.shape[1])
+    return img_result, total_area
 
 
 def apply_cutting_heatmap(
     img: Image.Image, heatmap_solutions: np.ndarray
-) -> Image.Image:
+) -> tuple[Image.Image, float]:
     # Create a copy of the original image to avoid modifying it
     img_copy = img.copy()
     img_array = np.array(img_copy)
@@ -456,12 +457,14 @@ def apply_cutting_heatmap(
 
     # Convert back to PIL Image
     img_result = Image.fromarray(img_array)
-    return img_result
+    # Calculate the total area of the masked region
+    total_area = np.sum(mask) / (mask.shape[0] * mask.shape[1])
+    return img_result, total_area
 
 
 def apply_inpainting_heatmap(
     img: Image.Image, heatmap_solutions: np.ndarray
-) -> Image.Image:
+) -> tuple[Image.Image, float]:
     # Convert PIL image to OpenCV format
     img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
@@ -475,7 +478,9 @@ def apply_inpainting_heatmap(
 
     # Convert back to PIL Image
     inpainted_img = Image.fromarray(cv2.cvtColor(inpainted_img_cv, cv2.COLOR_BGR2RGB))
-    return inpainted_img
+    # Calculate the total area of the inpainted region
+    total_area = np.sum(mask > 0)
+    return inpainted_img, total_area
 
 
 def extract_static_polygon(solution: np.ndarray) -> list[tuple]:

@@ -18,19 +18,53 @@ from mestradolib.visual import add_title_to_image
 
 
 def get_score_and_save_literature(
-    img, threshold, attribution, learner, original_score, original_idx, img_path
+    img,
+    threshold,
+    attribution,
+    model_wrapper,
+    original_score,
+    original_idx,
+    img_path,
+    area_mean=-1,
+    save_files=True,
 ):
-    # create a mask from attribution with threshold
-    attr_mask = np.zeros_like(attribution)
-    attr_mask[attribution > threshold] = 1
+    # save atributions heatmap
+    if save_files:
+        plt.figure(figsize=(5, 5))
+        plt.imshow(np.array(img), cmap="gray", alpha=0.7)
+        plt.imshow(attribution, cmap="hot_r", alpha=0.5)
+        plt.title("Heatmap of Atributions")
+        plt.colorbar(label="Atribution")
+        heatmap_path = img_path.replace('masked', 'heatmap')
+        plt.savefig(heatmap_path)
+        plt.close()
+        
 
-    print(attr_mask.shape)
-    mask_area = np.sum(attr_mask) / (attr_mask.shape[0] * attr_mask.shape[1])
+
+    attr_mask = None
+    mask_area = 0
+    if area_mean > 0:
+        flat_attr = attribution.flatten()
+        sorted_indices = np.argsort(flat_attr)[::-1]
+        cumulative_area = 0
+        attr_mask = np.zeros_like(flat_attr)
+        for idx in sorted_indices:
+            attr_mask[idx] = 1
+            cumulative_area += 1 / len(flat_attr)
+            if cumulative_area >= area_mean:
+                break
+        mask_area = cumulative_area
+        attr_mask = attr_mask.reshape(attribution.shape)
+    else:
+        # create a mask from attribution with threshold
+        attr_mask = np.zeros_like(attribution)
+        attr_mask[attribution > threshold] = 1
+
+        mask_area = np.sum(attr_mask) / (attr_mask.shape[0] * attr_mask.shape[1])
 
     # apply mask to image
     masked_image = mask(img, attr_mask)
-    masked_image_score, _ = get_img_score(learner, masked_image, original_idx)
-    print(masked_image_score, original_score)
+    masked_image_score, _ = model_wrapper.get_img_score(masked_image, original_idx)
     masked_image = add_title_to_image(
         masked_image,
         f"{masked_image_score:.4f}\n{original_score:.4f}",
@@ -39,12 +73,13 @@ def get_score_and_save_literature(
     )
 
     # save masked image
-    masked_image.save(img_path)
+    if save_files:
+        masked_image.save(img_path)
 
     inverse_mask = 1 - attr_mask
     masked_image_inverse = mask(img, inverse_mask)
-    masked_image_inverse_score, _ = get_img_score(
-        learner, masked_image_inverse, original_idx
+    masked_image_inverse_score, _ = model_wrapper.get_img_score(
+        masked_image_inverse, original_idx
     )
     masked_image_inverse = add_title_to_image(
         masked_image_inverse,
@@ -53,7 +88,8 @@ def get_score_and_save_literature(
         font_pos=(1, 2),
     )
 
-    masked_image_inverse.save(img_path.replace("masked", "masked_inverse"))
+    if save_files:
+        masked_image_inverse.save(img_path.replace("masked", "masked_inverse"))
 
     return masked_image_score, mask_area, masked_image_inverse_score
 
@@ -80,18 +116,22 @@ def model_func_integrated_gradients(model, original_idx, x):
     return output[:, original_idx].flatten()
 
 
-def run_literature(folder_name, i, p_name, img, learn, original_score, original_idx):
-    # Checa se atributo model existe, se não, usa o próprio learn como modelo
-    if hasattr(learn, "model"):
-        model = learn.model
-    else:
-        model = learn
+def run_literature(
+    folder_name,
+    i,
+    p_name,
+    img,
+    model_wrapper,
+    original_score,
+    original_idx,
+    area_mean=-1,
+    save_files=True,
+):
+    model = model_wrapper.get_pytorch_model()
     model.eval()
     img_tensor = pil_to_tensor(img).unsqueeze(0).float() / 255.0
     device = next(model.parameters()).device
     img_tensor = img_tensor.to(device)
-
-    print(f"img_tensor.shape: {img_tensor.shape}")
 
     sal = Saliency(lambda x: model_func_saliency(model, x))
 
@@ -107,10 +147,12 @@ def run_literature(folder_name, i, p_name, img, learn, original_score, original_
             img,
             0.01,
             attribution,
-            learn,
+            model_wrapper,
             original_score,
             original_idx,
             f"{folder_name}/{i}/{p_name}/masked_saliency.png",
+            area_mean=area_mean,
+            save_files=save_files,
         )
     )
     saliency_time = final_time - initial_time
@@ -133,10 +175,12 @@ def run_literature(folder_name, i, p_name, img, learn, original_score, original_
         img,
         0.01,
         attribution,
-        learn,
+        model_wrapper,
         original_score,
         original_idx,
         f"{folder_name}/{i}/{p_name}/masked_integrated_gradients.png",
+        area_mean=area_mean,
+        save_files=save_files,
     )
     integrated_gradients_time = final_time - initial_time
 
@@ -151,10 +195,12 @@ def run_literature(folder_name, i, p_name, img, learn, original_score, original_
             img,
             0.01,
             attribution,
-            learn,
+            model_wrapper,
             original_score,
             original_idx,
             f"{folder_name}/{i}/{p_name}/masked_guided_backprop.png",
+            area_mean=area_mean,
+            save_files=save_files,
         )
     )
     guided_backprop_time = final_time - initial_time
@@ -172,10 +218,12 @@ def run_literature(folder_name, i, p_name, img, learn, original_score, original_
             img,
             0.01,
             attribution,
-            learn,
+            model_wrapper,
             original_score,
             original_idx,
             f"{folder_name}/{i}/{p_name}/masked_guided_gradcam.png",
+            area_mean=area_mean,
+            save_files=save_files,
         )
     )
     guided_gradcam_time = final_time - initial_time
@@ -193,10 +241,12 @@ def run_literature(folder_name, i, p_name, img, learn, original_score, original_
             img,
             0.01,
             attribution,
-            learn,
+            model_wrapper,
             original_score,
             original_idx,
             f"{folder_name}/{i}/{p_name}/masked_layer_gradcam.png",
+            area_mean=area_mean,
+            save_files=save_files,
         )
     )
     layer_gradcam_time = final_time - initial_time

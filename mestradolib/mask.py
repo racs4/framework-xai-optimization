@@ -68,3 +68,22 @@ def positive_mask_polygon(img, points):
 
     # Convert back to PIL Image
     return Image.fromarray(img_array)
+
+
+def mask_from_integers(integers, size):
+    width, height = size
+    integers = np.asarray(integers, dtype=np.uint32)
+    n_bits = width * height
+    bits_per_int = 16
+
+    # Desempacotar todos os bits de uma vez
+    bit_pos = np.arange(bits_per_int)
+    bits = ((integers[:, None] >> bit_pos) & 1).astype(np.uint8)
+
+    # Achatar e pegar apenas os primeiros n_bits
+    all_bits = bits.flatten()[:n_bits]
+
+    # Reshape para (height, width)
+    mask = all_bits.reshape(height, width)
+
+    return mask

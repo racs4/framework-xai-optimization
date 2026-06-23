@@ -11,3 +11,4 @@ wheels/
 
 # Results
 results*/**
+output_images*/**

@@ -1,5 +1,7 @@
 import multiprocessing
+import time
 from fastai.learner import Learner
+from pymoo.operators.repair.vtype import TypeRepair
 from torchvision import transforms
 from pymoo.core.problem import ElementwiseProblem, Problem
 from pymoo.algorithms.moo.nsga2 import NSGA2
@@ -8,15 +10,23 @@ from pymoo.operators.crossover.sbx import SBX
 from pymoo.operators.mutation.pm import PM
 from pymoo.operators.repair.rounding import RoundingRepair
 from pymoo.operators.sampling.rnd import IntegerRandomSampling
+from pymoo.operators.sampling.lhs import LHS
 from pymoo.core.result import Result
 from PIL import Image, ImageDraw
 import torch
 from mestradolib.mask import *
+from mestradolib.model import ModelWrapper
 from mestradolib.utils import *
 from mestradolib.inpaint import *
 from pymoo.optimize import minimize
 import numpy as np
 import sys
+
+
+class IntegerLHS(LHS):
+    def _do(self, problem, n_samples, **kwargs):
+        samples = super()._do(problem, n_samples, **kwargs)
+        return np.round(samples).astype(int)
 
 
 class EvaluationObject:
@@ -60,7 +70,7 @@ class EvaluationObject:
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
@@ -76,7 +86,7 @@ class EvaluationObject:
 def minimize_rectangle_problem(
     img: Image.Image,
     evaluation_object: EvaluationObject,
-    learn: Learner,
+    model_wrapper: ModelWrapper,
     prob_img_original,
     pred_idx_original,
     n_proccess=8,
@@ -86,7 +96,7 @@ def minimize_rectangle_problem(
         img,
         prob_img_original,
         pred_idx_original,
-        learn,
+        model_wrapper,
         evaluation_object,
     )
 
@@ -97,7 +107,9 @@ def minimize_rectangle_problem(
         mutation=evaluation_object.get_mutation(),
     )
 
-    res = minimize(problem, algorithm, ("n_gen", 10), seed=42, verbose=False)
+    res = minimize(
+        problem, algorithm, ("n_gen", 10), seed=42, verbose=False, save_history=True
+    )
 
     return res
 
@@ -110,7 +122,7 @@ class MenorProbalidadeMenorArea(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
@@ -135,7 +147,7 @@ class RectangleProblem(ElementwiseProblem):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         evaluation_object: EvaluationObject,
         *args,
         **kwargs,
@@ -175,12 +187,16 @@ class VectorizedRectangleProblem(Problem):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         evaluation_object: EvaluationObject,
         *args,
         **kwargs,
     ):
-        xu = img.width if evaluation_object.xu is None else evaluation_object.xu
+        xu = (
+            max(img.width, img.height)
+            if evaluation_object.xu is None
+            else evaluation_object.xu
+        )
         if callable(xu):
             xu = xu(img)
 
@@ -224,7 +240,7 @@ class ApenasMenorProbabilidade(EvaluationObject):
         out,
         img: Image.Image,
         prob_img_original: float,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
@@ -247,7 +263,7 @@ class ProbabilidadeMaisArea(EvaluationObject):
         out,
         img: Image.Image,
         prob_img_original: float,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
@@ -274,7 +290,7 @@ class PoligonoEPerimetro(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
@@ -305,7 +321,7 @@ class PoligonoSemIntercessaoEPerimetro(EvaluationObject):
         out,
         img: Image.Image,
         prob_img_original: float,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
@@ -341,7 +357,7 @@ class MenorProbalidadeMenorAreaInpaint(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
@@ -367,30 +383,13 @@ class MenorProbalidadeMenorAreaInpaintVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
-        # tfms = model.dls.valid.after_item
-
-        model_torch = model.model
-        model_torch.eval()
-        model_torch.to(device=model.dls.device)
-
-        # 1. Gerar todas as imagens modificadas
         images = [inpaint_image_with_rectangle(img, xi) for xi in x]
-
-        dl = model.dls.test_dl(images)
-        images_tensor = dl.one_batch()[0]
-        images_tensor = images_tensor.to(device=model.dls.device).float()
-
-        prob_imgs_com_retangulo = []
-        with torch.no_grad():
-            outputs = model_torch(images_tensor)
-            prob_imgs_com_retangulo = torch.softmax(outputs, dim=1)
-
-        prob_imgs_com_retangulo = (
-            prob_imgs_com_retangulo[:, pred_idx_original].cpu().numpy()
+        prob_imgs_com_retangulo = model.get_vetorized_probabilities(
+            images, pred_idx_original
         )
 
         areas = (x[:, 2] - x[:, 0]) * (x[:, 3] - x[:, 1])
@@ -407,30 +406,13 @@ class MenorProbalidadeMenorAreaInpaintInverseVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
-        # tfms = model.dls.valid.after_item
-
-        model_torch = model.model
-        model_torch.eval()
-        model_torch.to(device=model.dls.device)
-
-        # 1. Gerar todas as imagens modificadas
         images = [inpaint_inverse_image_with_rectangle(img, xi) for xi in x]
-
-        dl = model.dls.test_dl(images)
-        images_tensor = dl.one_batch()[0]
-        images_tensor = images_tensor.to(device=model.dls.device).float()
-
-        prob_imgs_com_retangulo = []
-        with torch.no_grad():
-            outputs = model_torch(images_tensor)
-            prob_imgs_com_retangulo = torch.softmax(outputs, dim=1)
-
-        prob_imgs_com_retangulo = (
-            prob_imgs_com_retangulo[:, pred_idx_original].cpu().numpy()
+        prob_imgs_com_retangulo = model.get_vetorized_probabilities(
+            images, pred_idx_original
         )
 
         areas = (x[:, 2] - x[:, 0]) * (x[:, 3] - x[:, 1])
@@ -447,29 +429,13 @@ class MenorProbalidadeMenorAreaVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
-        # tfms = model.dls.valid.after_item
-
-        model_torch = model.model
-        model_torch.eval()
-        model_torch.to(device=model.dls.device)
-
         images = [mask_rectangle(img, xi) for xi in x]
-
-        dl = model.dls.test_dl(images)
-        images_tensor = dl.one_batch()[0]
-        images_tensor = images_tensor.to(device=model.dls.device).float()
-
-        prob_imgs_com_retangulo = []
-        with torch.no_grad():
-            outputs = model_torch(images_tensor)
-            prob_imgs_com_retangulo = torch.softmax(outputs, dim=1)
-
-        prob_imgs_com_retangulo = (
-            prob_imgs_com_retangulo[:, pred_idx_original].cpu().numpy()
+        prob_imgs_com_retangulo = model.get_vetorized_probabilities(
+            images, pred_idx_original
         )
 
         areas = (x[:, 2] - x[:, 0]) * (x[:, 3] - x[:, 1])
@@ -486,29 +452,13 @@ class MenorProbalidadeMenorAreaInverseVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
-        # tfms = model.dls.valid.after_item
-
-        model_torch = model.model
-        model_torch.eval()
-        model_torch.to(device=model.dls.device)
-
         images = [mask_inverse_rectangle(img, xi) for xi in x]
-
-        dl = model.dls.test_dl(images)
-        images_tensor = dl.one_batch()[0]
-        images_tensor = images_tensor.to(device=model.dls.device).float()
-
-        prob_imgs_com_retangulo = []
-        with torch.no_grad():
-            outputs = model_torch(images_tensor)
-            prob_imgs_com_retangulo = torch.softmax(outputs, dim=1)
-
-        prob_imgs_com_retangulo = (
-            prob_imgs_com_retangulo[:, pred_idx_original].cpu().numpy()
+        prob_imgs_com_retangulo = model.get_vetorized_probabilities(
+            images, pred_idx_original
         )
 
         areas = (x[:, 2] - x[:, 0]) * (x[:, 3] - x[:, 1])
@@ -528,29 +478,13 @@ class IPHAFlavioMarceloInverseVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
-        # tfms = model.dls.valid.after_item
-
-        model_torch = model.model
-        model_torch.eval()
-        model_torch.to(device=model.dls.device)
-
         images = [mask(img, xi) for xi in x]
-
-        dl = model.dls.test_dl(images)
-        images_tensor = dl.one_batch()[0]
-        images_tensor = images_tensor.to(device=model.dls.device).float()
-
-        prob_imgs_com_mascara = []
-        with torch.no_grad():
-            outputs = model_torch(images_tensor)
-            prob_imgs_com_mascara = torch.softmax(outputs, dim=1)
-
-        prob_imgs_com_mascara = (
-            prob_imgs_com_mascara[:, pred_idx_original].cpu().numpy()
+        prob_imgs_com_mascara = model.get_vetorized_probabilities(
+            images, pred_idx_original
         )
 
         result = prob_img_original - prob_imgs_com_mascara
@@ -570,8 +504,8 @@ class IPHAFlavioMarceloVectorized(EvaluationObject):
         super().__init__(
             0,
             1,
-            0,
             1,
+            2**16,
             mutation,
             crossover,
             problem_best_image,
@@ -588,33 +522,16 @@ class IPHAFlavioMarceloVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
-        # tfms = model.dls.valid.after_item
-
-        model_torch = model.model
-        model_torch.eval()
-        model_torch.to(device=model.dls.device)
-
-        images = [mask(img, xi) for xi in x]
-
-        dl = model.dls.test_dl(images)
-        images_tensor = dl.one_batch()[0]
-        images_tensor = images_tensor.to(device=model.dls.device).float()
-
-        prob_imgs_com_mascara = []
-        with torch.no_grad():
-            outputs = model_torch(images_tensor)
-            prob_imgs_com_mascara = torch.softmax(outputs, dim=1)
-
-        prob_imgs_com_mascara = (
-            prob_imgs_com_mascara[:, pred_idx_original].cpu().numpy()
+        masks = [mask_from_integers(xi, img.size) for xi in x]
+        images = [mask(img, m) for m in masks]
+        prob_imgs_com_mascara = model.get_vetorized_probabilities(
+            images, pred_idx_original
         )
-
-        result = prob_imgs_com_mascara - prob_img_original
-        out["F"] = result
+        out["F"] = prob_imgs_com_mascara - prob_img_original
 
 
 class PoligonoEPerimetroVectorized(EvaluationObject):
@@ -625,36 +542,18 @@ class PoligonoEPerimetroVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
-        # tfms = model.dls.valid.after_item
-
-        model_torch = model.model
-        model_torch.eval()
-        model_torch.to(device=model.dls.device)
-
-        # 1. Gerar todas as imagens modificadas
-
         images = [mask_polygon(img, xi) for xi in x]
-
-        dl = model.dls.test_dl(images)
-        images_tensor = dl.one_batch()[0]
-        images_tensor = images_tensor.to(device=model.dls.device).float()
-
-        prob_imgs_com_retangulo = []
-        with torch.no_grad():
-            outputs = model_torch(images_tensor)
-            prob_imgs_com_retangulo = torch.softmax(outputs, dim=1)
-
-        prob_imgs_com_retangulo = (
-            prob_imgs_com_retangulo[:, pred_idx_original].cpu().numpy()
+        prob_imgs_com_poligono = model.get_vetorized_probabilities(
+            images, pred_idx_original
         )
 
         perimetros = calcula_perimetros(x)
         result = np.column_stack(
-            [prob_imgs_com_retangulo - prob_img_original, perimetros]
+            [prob_imgs_com_poligono - prob_img_original, perimetros]
         )
         out["F"] = result
 
@@ -680,7 +579,7 @@ class DynamicPoligonoEPerimetroVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
@@ -729,36 +628,18 @@ class PoligonoEPerimetroInpaintVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
-        # tfms = model.dls.valid.after_item
-
-        model_torch = model.model
-        model_torch.eval()
-        model_torch.to(device=model.dls.device)
-
-        # 1. Gerar todas as imagens modificadas
-
         images = [inpaint_image_with_points(img, xi) for xi in x]
-
-        dl = model.dls.test_dl(images)
-        images_tensor = dl.one_batch()[0]
-        images_tensor = images_tensor.to(device=model.dls.device).float()
-
-        prob_imgs_com_retangulo = []
-        with torch.no_grad():
-            outputs = model_torch(images_tensor)
-            prob_imgs_com_retangulo = torch.softmax(outputs, dim=1)
-
-        prob_imgs_com_retangulo = (
-            prob_imgs_com_retangulo[:, pred_idx_original].cpu().numpy()
+        prob_imgs_com_poligono = model.get_vetorized_probabilities(
+            images, pred_idx_original
         )
 
         perimetros = calcula_perimetros(x)
         result = np.column_stack(
-            [prob_imgs_com_retangulo - prob_img_original, perimetros]
+            [prob_imgs_com_poligono - prob_img_original, perimetros]
         )
         out["F"] = result
 
@@ -784,7 +665,7 @@ class DynamicPoligonoEPerimetroInpaintVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
@@ -833,7 +714,7 @@ class PoligonoEPerimetroPositiveVectorized(EvaluationObject):
         img: Image.Image,
         prob_img_original: float,
         pred_idx_original: int,
-        model: Learner,
+        model: ModelWrapper,
         *args,
         **kwargs,
     ):
