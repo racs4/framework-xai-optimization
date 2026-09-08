@@ -21,6 +21,7 @@ import numpy as np
 from torchvision import transforms
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
+import clip
 
 
 def reproducibility(seed=42) -> None:
@@ -291,3 +292,44 @@ class ModelWrapperClip(ModelWrapper):
     def get_pytorch_model(self):
         return self.model
 
+class ModelWrapperOpenClip(ModelWrapper):
+    def __init__(self, labels):
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.run_literature = False
+        self.model, self.processor = clip.load("ViT-B/16", device=self.device)
+        self.labels = labels
+        self.inner_res = self.model.visual.input_resolution
+        self.kernel_size = self.model.visual.conv1.kernel_size
+
+    def get_vetorized_probabilities(self, imgs, pred_idx_original):
+        text_inputs = clip.tokenize(self.labels).to(self.device)
+        image_input = torch.stack([self.processor(img) for img in imgs]).to(self.device)
+
+        self.model.to(device=self.device)
+
+        with torch.no_grad():
+            logits_per_image, _ = self.model(image_input, text_inputs)
+            probs = logits_per_image.softmax(dim=1)
+            probs = probs[:, pred_idx_original].cpu().detach().numpy()
+
+        return probs
+
+    def get_img_score(self, img: Image, original_idx: int = -1) -> float:
+        text_inputs = clip.tokenize(self.labels).to(self.device)
+        image_input = self.processor(img).unsqueeze(0).to(self.device)
+
+        self.model.to(device=self.device)
+
+        with torch.no_grad():
+            logits_per_image, _ = self.model(image_input, text_inputs)
+            probs = logits_per_image.softmax(dim=1)
+
+        if original_idx == -1:
+            result = probs.argmax().item()
+            return probs[0, result].item(), result
+        else:
+            return probs[0, original_idx].item(), original_idx
+
+    def get_pytorch_model(self):
+        return self.model
