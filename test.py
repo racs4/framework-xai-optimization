@@ -21,9 +21,9 @@ if __name__ == "__main__":
         #     "squeezenet1_0": squeezenet1_0,
         # }[learner_name]
 
-        learner = get_learner(
-            data, model_arch=resnet18, name="resnet18", ds_name="imagenette"
-        )
+        # learner = get_learner(
+        #     data, model_arch=resnet18, name="resnet18", ds_name="imagenette"
+        # )
         # model_wrapper = ModelWrapperFastAI(learner)
         # model_wrapper = ModelWrapperClip("openai/clip-vit-base-patch32", labels=["horn", "head"])
         model_wrapper = ModelWrapperOpenClip(labels=["horn", "head"])
@@ -38,7 +38,7 @@ if __name__ == "__main__":
                 problem_best_image=create_rectangle_best_image,
                 problem_heatmap=create_rectangle_heatmap,
                 problem_probability_heatmap=create_rectangle_probability_heatmap,
-                problem_name="menor_probabilidade_menor_area_v",
+                problem_name="IPHA-R",
             ),
             PoligonoEPerimetroVectorized(
                 10,
@@ -46,7 +46,7 @@ if __name__ == "__main__":
                 problem_best_image=create_polygonal_best_image,
                 problem_heatmap=create_polygonal_heatmap,
                 problem_probability_heatmap=create_polygonal_probability_heatmap,
-                problem_name="poligono_e_perimetro_v",
+                problem_name="IPHA-P",
             ),
             MenorProbalidadeMenorAreaInpaintVectorized(
                 4,
@@ -54,7 +54,7 @@ if __name__ == "__main__":
                 problem_best_image=create_rectangle_best_image,
                 problem_heatmap=create_rectangle_heatmap,
                 problem_probability_heatmap=create_rectangle_probability_heatmap,
-                problem_name="menor_probabilidade_menor_area_inpaint_v",
+                problem_name="IPHA-RI",
             ),
             PoligonoEPerimetroInpaintVectorized(
                 10,
@@ -62,7 +62,7 @@ if __name__ == "__main__":
                 problem_best_image=create_polygonal_best_image,
                 problem_heatmap=create_polygonal_heatmap,
                 problem_probability_heatmap=create_polygonal_probability_heatmap,
-                problem_name="poligono_e_perimetro_com_inpaint_v",
+                problem_name="IPHA-PI",
             ),
             IPHAFlavioMarceloVectorized(
                 problem_best_image=create_mask_best_image,
@@ -92,4 +92,5 @@ if __name__ == "__main__":
             parallel=False,
             append=True,
             save_files=True,
+            with_grad_start=True
         )

@@ -5,6 +5,7 @@ from pyrecorder.writers.video import Video
 from pymoo.visualization.scatter import Scatter
 from joblib import Parallel, delayed
 from tqdm import tqdm
+from mestradolib.grad_eclip import get_grad_eclip_img
 from mestradolib.model import *
 from mestradolib.problems import *
 from mestradolib.inpaint import *
@@ -287,6 +288,7 @@ def run_test(
     parallel=False,
     append=False,
     save_files=True,
+    with_grad_start=False
 ):
     with keep.presenting():
         mode = "a" if append else "w"
@@ -300,6 +302,9 @@ def run_test(
                 try:
                     # save original image with index on {folder_name}/{idx}/original.png
                     img = get_img(i, data, use_train=False)
+
+                    if with_grad_start:
+                        img = get_grad_eclip_img(img, model_wrapper)
 
                     npixels = img.size[0] * img.size[1]
                     for p in problems:
