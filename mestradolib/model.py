@@ -241,11 +241,12 @@ class ModelWrapperFastAI(ModelWrapper):
 
 
 class ModelWrapperClip(ModelWrapper):
-    def __init__(self, labels):
+    def __init__(self, path, labels):
         super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.run_literature = False
-        self.model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-        self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        self.model = CLIPModel.from_pretrained(path)
+        self.processor = CLIPProcessor.from_pretrained(path)
         self.labels = labels
 
     def get_vetorized_probabilities(self, imgs, pred_idx_original):
@@ -255,6 +256,9 @@ class ModelWrapperClip(ModelWrapper):
             return_tensors="pt",
             padding=True,
         )
+
+        self.model.to(device=self.device)
+        inputs.to(self.device)
 
         outputs = self.model(**inputs)
         logits_per_image = outputs.logits_per_image
@@ -270,6 +274,9 @@ class ModelWrapperClip(ModelWrapper):
             return_tensors="pt",
             padding=True,
         )
+
+        self.model.to(device=self.device)
+        inputs.to(self.device)
 
         outputs = self.model(**inputs)
         logits_per_image = outputs.logits_per_image

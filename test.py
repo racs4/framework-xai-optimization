@@ -24,8 +24,8 @@ if __name__ == "__main__":
         learner = get_learner(
             data, model_arch=resnet18, name="resnet18", ds_name="imagenette"
         )
-        model_wrapper = ModelWrapperFastAI(learner)
-        # model_wrapper = ModelWrapperClip(labels=["flag", "fish"])
+        # model_wrapper = ModelWrapperFastAI(learner)
+        model_wrapper = ModelWrapperClip("openai/clip-vit-base-patch32", labels=["horn", "head"])
 
         idxs = [337]  # [1130, 0, 60, 99, 95, 63, 65, 455]
         # idxs = np.random.randint(0, len(data.valid_ds), size=200)
