@@ -131,7 +131,7 @@ def get_learner(
     # check if learner is saved in the current directory
     if (Path.cwd() / f"{ds_name}_{name}_learner.pth").exists():
         learn = vision_learner(dls, model_arch, metrics=accuracy)
-        learn.load(f"./{ds_name}_{name}_learner.pth")
+        learn.load(f"./{ds_name}_{name}_learner")
         learn.model.cuda(0)
         return learn
 
