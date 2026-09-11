@@ -13,6 +13,7 @@ from torchvision.transforms.functional import pil_to_tensor
 from PIL import Image
 import torch.nn as nn
 from mestradolib.mask import mask
+from mestradolib.metrics import compute_insertion_deletion_metrics
 from mestradolib.model import get_img_score
 from mestradolib.visual import add_title_to_image
 
@@ -27,6 +28,7 @@ def get_score_and_save_literature(
     img_path,
     area_mean=-1,
     save_files=True,
+    calculate_insertion_deletion_metrics=False,
 ):
     # save atributions heatmap
     if save_files:
@@ -38,8 +40,15 @@ def get_score_and_save_literature(
         heatmap_path = img_path.replace('masked', 'heatmap')
         plt.savefig(heatmap_path)
         plt.close()
-        
 
+    insertion_deletion_metrics = None
+    if calculate_insertion_deletion_metrics:
+        insertion_deletion_metrics = compute_insertion_deletion_metrics(
+            model_wrapper,
+            img,
+            original_idx,
+            attribution,
+        )
 
     attr_mask = None
     mask_area = 0
@@ -60,11 +69,13 @@ def get_score_and_save_literature(
         attr_mask = np.zeros_like(attribution)
         attr_mask[attribution > threshold] = 1
 
-        mask_area = np.sum(attr_mask) / (attr_mask.shape[0] * attr_mask.shape[1])
+        mask_area = np.sum(attr_mask) / \
+            (attr_mask.shape[0] * attr_mask.shape[1])
 
     # apply mask to image
     masked_image = mask(img, attr_mask)
-    masked_image_score, _ = model_wrapper.get_img_score(masked_image, original_idx)
+    masked_image_score, _ = model_wrapper.get_img_score(
+        masked_image, original_idx)
     masked_image = add_title_to_image(
         masked_image,
         f"{masked_image_score:.4f}\n{original_score:.4f}",
@@ -91,7 +102,7 @@ def get_score_and_save_literature(
     if save_files:
         masked_image_inverse.save(img_path.replace("masked", "masked_inverse"))
 
-    return masked_image_score, mask_area, masked_image_inverse_score
+    return masked_image_score, mask_area, masked_image_inverse_score, insertion_deletion_metrics
 
 
 def find_last_conv2d(module):
@@ -137,12 +148,13 @@ def run_literature(
 
     initial_time = time.time()
     attribution = (
-        sal.attribute(img_tensor, abs=True, target=original_idx).cpu().detach().numpy()
+        sal.attribute(img_tensor, abs=True,
+                      target=original_idx).cpu().detach().numpy()
     )
     attribution = np.abs(attribution.squeeze()).mean(axis=0)
     final_time = time.time()
 
-    saliency_score, saliency_area, saliency_inverse_score = (
+    saliency_score, saliency_area, saliency_inverse_score, saliency_insertion_deletion_metrics = (
         get_score_and_save_literature(
             img,
             0.01,
@@ -162,7 +174,8 @@ def run_literature(
     )
     initial_time = time.time()
     attribution = (
-        integrated_gradients.attribute(img_tensor, target=None).cpu().detach().numpy()
+        integrated_gradients.attribute(
+            img_tensor, target=None).cpu().detach().numpy()
     )
     attribution = np.abs(attribution.squeeze()).mean(axis=0)
     final_time = time.time()
@@ -171,6 +184,7 @@ def run_literature(
         integrated_gradients_score,
         integrated_gradients_area,
         integrated_gradients_inverse_score,
+        integrated_gradients_insertion_deletion_metrics,
     ) = get_score_and_save_literature(
         img,
         0.01,
@@ -186,11 +200,12 @@ def run_literature(
 
     gbp = GuidedBackprop(model)
     initial_time = time.time()
-    attribution = gbp.attribute(img_tensor, target=original_idx).cpu().detach().numpy()
+    attribution = gbp.attribute(
+        img_tensor, target=original_idx).cpu().detach().numpy()
     attribution = np.abs(attribution.squeeze()).mean(axis=0)
     final_time = time.time()
 
-    guided_backprop_score, guided_backprop_area, guided_backprop_inverse_score = (
+    guided_backprop_score, guided_backprop_area, guided_backprop_inverse_score, guided_backprop_insertion_deletion_metrics = (
         get_score_and_save_literature(
             img,
             0.01,
@@ -208,12 +223,13 @@ def run_literature(
     guided_gc = GuidedGradCam(model, find_last_conv2d(model))
     initial_time = time.time()
     attribution = (
-        guided_gc.attribute(img_tensor, target=original_idx).cpu().detach().numpy()
+        guided_gc.attribute(
+            img_tensor, target=original_idx).cpu().detach().numpy()
     )
     attribution = np.mean(attribution.squeeze(), axis=0)
     final_time = time.time()
 
-    guided_gradcam_score, guided_gradcam_area, guided_gradcam_inverse_score = (
+    guided_gradcam_score, guided_gradcam_area, guided_gradcam_inverse_score, guided_gradcam_insertion_deletion_metrics = (
         get_score_and_save_literature(
             img,
             0.01,
@@ -236,7 +252,7 @@ def run_literature(
     attribution = np.maximum(attribution, 0).squeeze()
     final_time = time.time()
 
-    layer_gradcam_score, layer_gradcam_area, layer_gradcam_inverse_score = (
+    layer_gradcam_score, layer_gradcam_area, layer_gradcam_inverse_score, layer_gradcam_insertion_deletion_metrics = (
         get_score_and_save_literature(
             img,
             0.01,

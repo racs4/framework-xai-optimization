@@ -156,7 +156,7 @@ def get_img(idx: int, dls: DataLoaders, use_train=False) -> Image.Image:
     return img
 
 
-def get_img_score(model: Learner, img: Image, original_idx: int = -1) -> float:
+def get_img_score(model: Learner, img: Image, original_idx: int = -1):
     # tfms = model.dls.valid.after_item
 
     model_torch = model.model
@@ -180,10 +180,12 @@ def get_img_score(model: Learner, img: Image, original_idx: int = -1) -> float:
     if original_idx == -1:
         # get the predicted index from torch
         pred_idx = torch.argmax(prob_imgs_com_retangulo, dim=1).item()
-        prob_imgs_com_retangulo = prob_imgs_com_retangulo[:, pred_idx].cpu().numpy()
+        prob_imgs_com_retangulo = prob_imgs_com_retangulo[:, pred_idx].cpu(
+        ).numpy()
         return prob_imgs_com_retangulo[0], pred_idx
     else:
-        prob_imgs_com_retangulo = prob_imgs_com_retangulo[:, original_idx].cpu().numpy()
+        prob_imgs_com_retangulo = prob_imgs_com_retangulo[:, original_idx].cpu(
+        ).numpy()
         return prob_imgs_com_retangulo[0], original_idx
 
     # if original_idx == -1:
@@ -202,7 +204,7 @@ class ModelWrapper:
     def get_vetorized_probabilities(self, imgs, pred_idx_original):
         pass
 
-    def get_img_score(self, img: Image, original_idx: int = -1) -> float:
+    def get_img_score(self, img: Image, original_idx: int = -1):
         pass
 
     def get_pytorch_model(self):
@@ -233,7 +235,7 @@ class ModelWrapperFastAI(ModelWrapper):
 
         return prob_imgs_com_retangulo
 
-    def get_img_score(self, img: Image, original_idx: int = -1) -> float:
+    def get_img_score(self, img: Image, original_idx: int = -1):
         return get_img_score(self.model, img, original_idx)
 
     def get_pytorch_model(self):
@@ -245,7 +247,8 @@ class ModelWrapperClip(ModelWrapper):
         super().__init__()
         self.run_literature = False
         self.model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-        self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        self.processor = CLIPProcessor.from_pretrained(
+            "openai/clip-vit-base-patch32")
         self.labels = labels
 
     def get_vetorized_probabilities(self, imgs, pred_idx_original):
@@ -263,7 +266,7 @@ class ModelWrapperClip(ModelWrapper):
 
         return probs
 
-    def get_img_score(self, img: Image, original_idx: int = -1) -> float:
+    def get_img_score(self, img: Image, original_idx: int = -1):
         inputs = self.processor(
             text=self.labels,
             images=[img],
@@ -283,4 +286,3 @@ class ModelWrapperClip(ModelWrapper):
 
     def get_pytorch_model(self):
         return self.model
-

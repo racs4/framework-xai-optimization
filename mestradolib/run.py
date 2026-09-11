@@ -26,8 +26,9 @@ def get_score_and_save(
     original_idx,
     img_path,
     save_files=True,
+    calculate_insertion_and_deletion_metrics=False,
 ):
-    img, score, area = get_masked_image_with_score(
+    img, score, area, insertion_deletion_metrics = get_masked_image_with_score(
         img,
         res,
         threshold,
@@ -38,10 +39,11 @@ def get_score_and_save(
         original_idx,
         font_size=9,
         font_pos=(1, 2),
+        calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
     )
     if save_files:
         img.save(img_path)
-    return score, area
+    return score, area, insertion_deletion_metrics
 
 
 def process_problem(
@@ -90,7 +92,7 @@ def process_problem(
             img, res, p_heatmap, f"{folder_name}/{i}/{p_name}/heatmap_quantity.png"
         )
 
-    best_score_black, best_area_black = get_score_and_save(
+    best_score_black, best_area_black, best_insertion_deletion_metrics_black = get_score_and_save(
         img,
         res,
         0.01,
@@ -103,7 +105,7 @@ def process_problem(
         save_files,
     )
 
-    best_score_cutting_black, best_area_cutting_black = get_score_and_save(
+    best_score_cutting_black, best_area_cutting_black, best_insertion_deletion_metrics_cutting_black = get_score_and_save(
         img,
         res,
         0.01,
@@ -116,7 +118,7 @@ def process_problem(
         save_files,
     )
 
-    best_score_inpaint, best_area_inpaint = get_score_and_save(
+    best_score_inpaint, best_area_inpaint, best_insertion_deletion_metrics_inpaint = get_score_and_save(
         img,
         res,
         0.01,
@@ -130,7 +132,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_quantity_mask_black.png
-    quantity_score_black, quantity_area_black = get_score_and_save(
+    quantity_score_black, quantity_area_black, quantity_insertion_deletion_metrics_black = get_score_and_save(
         img,
         res,
         threshold,
@@ -144,7 +146,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_quantity_mask_black.png
-    quantity_score_cutting_black, quantity_area_cutting_black = get_score_and_save(
+    quantity_score_cutting_black, quantity_area_cutting_black, quantity_insertion_deletion_metrics_cutting_black = get_score_and_save(
         img,
         res,
         threshold,
@@ -158,7 +160,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_quantity_mask_inpaint.png
-    quantity_score_inpaint, quantity_area_inpaint = get_score_and_save(
+    quantity_score_inpaint, quantity_area_inpaint, quantity_insertion_deletion_metrics_inpaint = get_score_and_save(
         img,
         res,
         threshold,
@@ -185,7 +187,7 @@ def process_problem(
         )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_probability_mask_black.png
-    probability_score_black, probability_area_black = get_score_and_save(
+    probability_score_black, probability_area_black, probability_insertion_deletion_metrics_black = get_score_and_save(
         img,
         res,
         threshold,
@@ -199,7 +201,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_probability_mask_black.png
-    probability_score_cutting_black, probability_area_cutting_black = (
+    probability_score_cutting_black, probability_area_cutting_black, probability_insertion_deletion_metrics_cutting_black = (
         get_score_and_save(
             img,
             res,
@@ -215,7 +217,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_probability_mask_inpaint.png
-    probability_score_inpaint, probability_area_inpaint = get_score_and_save(
+    probability_score_inpaint, probability_area_inpaint, probability_insertion_deletion_metrics_inpaint = get_score_and_save(
         img,
         res,
         threshold,
@@ -316,7 +318,8 @@ def run_test(
 
                     # original_score, original_idx = prob_img_original, pred_idx_original
 
-                    original_score, original_idx = model_wrapper.get_img_score(img)
+                    original_score, original_idx = model_wrapper.get_img_score(
+                        img)
 
                     results = []
 
@@ -384,13 +387,15 @@ def run_test(
                         area_sum += quantity_area_black
 
                     if model_wrapper.run_literature:
-                        print(f"Calculating literature methods for image {i}...")
+                        print(
+                            f"Calculating literature methods for image {i}...")
                         area_mean = 0
                         if len(results) > 0:
                             area_mean = area_sum / len(results)
 
                         if save_files:
-                            create_folder_if_not_exists(f"{folder_name}/{i}/literature")
+                            create_folder_if_not_exists(
+                                f"{folder_name}/{i}/literature")
 
                         literature_results = run_literature(
                             folder_name,

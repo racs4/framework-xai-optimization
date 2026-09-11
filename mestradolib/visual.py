@@ -1,4 +1,5 @@
 import numpy as np
+from mestradolib.metrics import compute_insertion_deletion_metrics
 from mestradolib.model import ModelWrapper, get_img_score
 from mestradolib.problems import EvaluationObject, minimize_rectangle_problem
 from mestradolib.mask import mask_from_integers
@@ -59,7 +60,7 @@ def get_masked_image(
     title: str | None = None,
     font_size=None,
     font_pos=(10, 5),
-) -> tuple[Image.Image, float]:
+) -> tuple[Image.Image, np.ndarray, float]:
     heatmap = create_heatmap_function(img, res)
 
     max_value = np.max(heatmap)
@@ -76,7 +77,7 @@ def get_masked_image(
     if title is not None:
         img_res = add_title_to_image(img_res, title, font_size, font_pos)
 
-    return img_res, area
+    return img_res, heatmap, area
 
 
 def get_masked_image_with_score(
@@ -90,11 +91,23 @@ def get_masked_image_with_score(
     original_idx: int,
     font_size=None,
     font_pos=(10, 5),
+    calculate_insertion_and_deletion_metrics=False,
 ) -> Image.Image:
-    masked_image, area = get_masked_image(
+    masked_image, heatmap, area = get_masked_image(
         img, res, threshold, create_heatmap_function, apply_heatmap_function
     )
-    masked_image_score, _ = model_wrapper.get_img_score(masked_image, original_idx)
+
+    insertion_deletion_metrics = None
+    if calculate_insertion_and_deletion_metrics:
+        insertion_deletion_metrics = compute_insertion_deletion_metrics(
+            model_wrapper,
+            img,
+            original_idx,
+            heatmap,
+        )
+
+    masked_image_score, _ = model_wrapper.get_img_score(
+        masked_image, original_idx)
     return (
         add_title_to_image(
             masked_image,
@@ -104,6 +117,7 @@ def get_masked_image_with_score(
         ),
         masked_image_score,
         area,
+        insertion_deletion_metrics
     )
 
 
@@ -321,7 +335,8 @@ def show_polygonal_probability_heatmap(
 
 def save_pareto_front(res: Result, file_path: str) -> None:
     plt.figure(figsize=(8, 2))
-    plt.scatter(res.F[:, 0], res.F[:, 1], c="blue", label="Non-dominated Solutions")
+    plt.scatter(res.F[:, 0], res.F[:, 1], c="blue",
+                label="Non-dominated Solutions")
     plt.xlabel("Diff prob")
     plt.ylabel("Area/Perimetro")
     plt.title("Pareto Front")
@@ -335,7 +350,8 @@ def show_pareto_front(
     res: Result, label1: str = "Diff prob", label2: str = "Area/Perimetro"
 ) -> None:
     plt.figure(figsize=(8, 2))
-    plt.scatter(res.F[:, 0], res.F[:, 1], c="blue", label="Non-dominated Solutions")
+    plt.scatter(res.F[:, 0], res.F[:, 1], c="blue",
+                label="Non-dominated Solutions")
     plt.xlabel(label1)
     plt.ylabel(label2)
     plt.title("Pareto Front")
@@ -477,7 +493,8 @@ def apply_inpainting_heatmap(
     )
 
     # Convert back to PIL Image
-    inpainted_img = Image.fromarray(cv2.cvtColor(inpainted_img_cv, cv2.COLOR_BGR2RGB))
+    inpainted_img = Image.fromarray(
+        cv2.cvtColor(inpainted_img_cv, cv2.COLOR_BGR2RGB))
     # Calculate the total area of the inpainted region
     total_area = np.sum(mask > 0)
     return inpainted_img, total_area
@@ -489,5 +506,5 @@ def extract_static_polygon(solution: np.ndarray) -> list[tuple]:
 
 def extract_dynamic_polygon(solution: np.ndarray) -> list[tuple]:
     n = int(solution[0])
-    coords = solution[1 : 2 * n + 1]
+    coords = solution[1: 2 * n + 1]
     return [(coords[i], coords[i + 1]) for i in range(0, len(coords), 2)]

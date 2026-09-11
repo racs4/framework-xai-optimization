@@ -17,6 +17,7 @@ dependencies = [
     "captum>=0.7.0",
     "transformers>=5.9.0",
     "pyrecorder>=0.2.1",
+    "scikit-posthocs>=0.14.0",
 ]
 
 [[tool.uv.index]]
