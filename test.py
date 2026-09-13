@@ -82,15 +82,31 @@ if __name__ == "__main__":
         folder_name = f"results/results_imagenette_{learner_folder}"
         create_folder_if_not_exists(folder_name)
 
-        run_test(
-            folder_name,
-            idxs,
-            problems,
-            model_wrapper,
-            data,
-            threshold=0.1,
-            parallel=False,
-            append=True,
-            save_files=True,
-            with_grad_start=True
-        )
+        for _ in range(10):
+            run_test(
+                folder_name,
+                idxs,
+                problems,
+                model_wrapper,
+                data,
+                threshold=0.1,
+                parallel=False,
+                append=True,
+                save_files=True,
+                with_grad_start=False
+            )
+
+            run_test(
+                folder_name,
+                idxs,
+                problems,
+                model_wrapper,
+                data,
+                threshold=0.1,
+                parallel=False,
+                append=True,
+                save_files=True,
+                with_grad_start=True
+            )
+
+    summarize_results(folder_name)

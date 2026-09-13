@@ -56,12 +56,16 @@ def process_problem(
     problems,
     threshold=0.1,
     save_files=True,
+    with_grad_start=False
 ):
     problem = problems[j]
     p_best_image = problem.problem_best_image
     p_heatmap = problem.problem_heatmap
     p_probability_heatmap = problem.problem_probability_heatmap
     p_name = problem.problem_name
+
+    if with_grad_start:
+        p_name += f" with EGrad"
 
     problem.add_img(img)
     if save_files:
@@ -313,7 +317,7 @@ def run_test(
 
                     if save_files:
                         create_folder_if_not_exists(f"{folder_name}/{i}")
-                        img.save(f"{folder_name}/{i}/original.png")
+                        img.save(f"{folder_name}/{i}/original{"_EGrad_version" if with_grad_start else ""}.png")
 
                     # _, pred_idx_img, outputs_img = learner.predict(img)  # type: ignore
                     # prob_img_original = outputs_img[pred_idx_img].item()
@@ -338,6 +342,7 @@ def run_test(
                                 problems,
                                 threshold,
                                 save_files,
+                                with_grad_start
                             )
                             results.append(r)
                     else:
@@ -352,6 +357,7 @@ def run_test(
                                 folder_name,
                                 problems,
                                 threshold,
+                                with_grad_start
                             )
                             for j in range(len(problems))
                         )
@@ -425,3 +431,95 @@ def run_test(
                     with open(f"{folder_name}/error.txt", "a") as error_file:
                         error_file.write(f"Error processing image {i}: {e}\n")
                     continue
+
+def summarize_results(folder_name):
+    with open(f"{folder_name}/results_summary.csv", "w") as summary_file:
+        results = dict()
+
+        process_result_file(folder_name, results)
+
+        summary_file.write(
+            "problem in idx,original_score,best_score_black,best_score_inpaint,best_score_cutting_black,quantity_score_black,quantity_score_inpaint,quantity_score_cutting_black,probability_score_black,probability_score_inpaint,probability_score_cutting_black,threshold,time,best_area_black,best_area_inpaint,best_area_cutting_black,quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,probability_area_black,probability_area_inpaint,probability_area_cutting_black\n"
+        )
+
+        for key, fields in results.items():
+            summary_file.write(f"{key}")
+
+            for field, values in fields.items():
+                if values:
+                    mean = sum(values) / len(values)
+                else:
+                    mean = -1
+
+                cell = f"{mean:.4f}" if mean >= 0 else " - "
+                summary_file.write(f",{cell}")
+
+            summary_file.write(f"\n")
+
+        summary_file.close()
+
+def process_result_file(folder_name, results):
+    with open(f"{folder_name}/results.csv", "r") as results_file:
+        for result in results_file:
+            (
+                idx,
+                problem,
+                original_score,
+                best_score_black,
+                best_score_inpaint,
+                best_score_cutting_black,
+                quantity_score_black,
+                quantity_score_inpaint,
+                quantity_score_cutting_black,
+                probability_score_black,
+                probability_score_inpaint,
+                probability_score_cutting_black,
+                threshold,
+                time,
+                best_area_black,
+                best_area_inpaint,
+                best_area_cutting_black,
+                quantity_area_black,
+                quantity_area_inpaint,
+                quantity_area_cutting_black,
+                probability_area_black,
+                probability_area_inpaint,
+                probability_area_cutting_black
+            ) = result.split(",")
+
+            key = f"{idx} | {problem}"
+
+            if key not in results.keys():
+                results[key] = {}
+
+            values = {
+                "original_score": original_score,
+                "best_score_black": best_score_black,
+                "best_score_inpaint": best_score_inpaint,
+                "best_score_cutting_black": best_score_cutting_black,
+                "quantity_score_black": quantity_score_black,
+                "quantity_score_inpaint": quantity_score_inpaint,
+                "quantity_score_cutting_black": quantity_score_cutting_black,
+                "probability_score_black": probability_score_black,
+                "probability_score_inpaint": probability_score_inpaint,
+                "probability_score_cutting_black": probability_score_cutting_black,
+                "threshold": threshold,
+                "time": time,
+                "best_area_black": best_area_black,
+                "best_area_inpaint": best_area_inpaint,
+                "best_area_cutting_black": best_area_cutting_black,
+                "quantity_area_black": quantity_area_black,
+                "quantity_area_inpaint": quantity_area_inpaint,
+                "quantity_area_cutting_black": quantity_area_cutting_black,
+                "probability_area_black": probability_area_black,
+                "probability_area_inpaint": probability_area_inpaint,
+                "probability_area_cutting_black": probability_area_cutting_black,
+            }
+
+            for field, value in values.items():
+                if field not in results[key].keys():
+                    results[key][field] = []
+
+                results[key][field].append(float(value))
+
+        results_file.close()
