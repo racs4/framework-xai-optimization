@@ -93,8 +93,6 @@ def compute_insertion_deletion_metrics(
         deletion_curve.append(del_score)
         insertion_curve.append(ins_score)
 
-    print("Insertion curve:", insertion_curve)
-    print("Deletion curve:", deletion_curve)
     auc_insertion = float(np.mean(insertion_curve))
     auc_deletion = float(np.mean(deletion_curve))
     imd_value = compute_imd(insertion_curve, deletion_curve)
