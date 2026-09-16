@@ -91,6 +91,7 @@ def get_masked_image_with_score(
     original_idx: int,
     font_size=None,
     font_pos=(10, 5),
+    save_files=True,
     calculate_insertion_and_deletion_metrics=False,
 ) -> Image.Image:
     masked_image, heatmap, area = get_masked_image(
@@ -104,6 +105,7 @@ def get_masked_image_with_score(
             img,
             original_idx,
             heatmap,
+            save_files=save_files
         )
 
     masked_image_score, _ = model_wrapper.get_img_score(

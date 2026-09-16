@@ -39,10 +39,29 @@ def get_score_and_save(
         original_idx,
         font_size=9,
         font_pos=(1, 2),
+        save_files=save_files,
         calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
     )
     if save_files:
         img.save(img_path)
+        del_imgs_to_save = insertion_deletion_metrics.get("del_imgs_to_save", [])
+        ins_imgs_to_save = insertion_deletion_metrics.get("ins_imgs_to_save", [])
+        del_path = img_path.rsplit("/", 1)
+        if len(del_path) == 2:
+            del_path = f"{del_path[0]}/del/{del_path[1]}"
+        else:
+            del_path = f"del/{img_path}"
+        create_folder_if_not_exists(del_path.rsplit("/", 1)[0])
+        ins_path = img_path.rsplit("/", 1)
+        if len(ins_path) == 2:
+            ins_path = f"{ins_path[0]}/ins/{ins_path[1]}"
+        else:
+            ins_path = f"ins/{img_path}"
+        create_folder_if_not_exists(ins_path.rsplit("/", 1)[0])
+        for idx, del_img in enumerate(del_imgs_to_save):
+            del_img.save(del_path.replace(".png", f"_del_{idx}.png"))
+        for idx, ins_img in enumerate(ins_imgs_to_save):
+            ins_img.save(ins_path.replace(".png", f"_ins_{idx}.png"))
     return score, area, insertion_deletion_metrics
 
 
@@ -57,6 +76,7 @@ def process_problem(
     problems,
     threshold=0.1,
     save_files=True,
+    calculate_insertion_and_deletion_metrics=False
 ):
     problem = problems[j]
     p_best_image = problem.problem_best_image
@@ -103,6 +123,7 @@ def process_problem(
         original_idx,
         f"{folder_name}/{i}/{p_name}/best_black.png",
         save_files,
+        calculate_insertion_and_deletion_metrics
     )
 
     best_score_cutting_black, best_area_cutting_black, best_insertion_deletion_metrics_cutting_black = get_score_and_save(
@@ -116,6 +137,7 @@ def process_problem(
         original_idx,
         f"{folder_name}/{i}/{p_name}/best_cutted_black.png",
         save_files,
+        calculate_insertion_and_deletion_metrics
     )
 
     best_score_inpaint, best_area_inpaint, best_insertion_deletion_metrics_inpaint = get_score_and_save(
@@ -129,6 +151,7 @@ def process_problem(
         original_idx,
         f"{folder_name}/{i}/{p_name}/best_inpaint.png",
         save_files,
+        calculate_insertion_and_deletion_metrics
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_quantity_mask_black.png
@@ -143,6 +166,7 @@ def process_problem(
         original_idx,
         f"{folder_name}/{i}/{p_name}/masked_black_quantity.png",
         save_files,
+        calculate_insertion_and_deletion_metrics
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_quantity_mask_black.png
@@ -157,6 +181,7 @@ def process_problem(
         original_idx,
         f"{folder_name}/{i}/{p_name}/masked_cutting_black_quantity.png",
         save_files,
+        calculate_insertion_and_deletion_metrics
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_quantity_mask_inpaint.png
@@ -171,6 +196,7 @@ def process_problem(
         original_idx,
         f"{folder_name}/{i}/{p_name}/masked_inpaint_quantity.png",
         save_files,
+        calculate_insertion_and_deletion_metrics
     )
 
     # save pareto front on {folder_name}/{idx}/{problem_name}/pareto_front.png
@@ -198,6 +224,7 @@ def process_problem(
         original_idx,
         f"{folder_name}/{i}/{p_name}/masked_black_probability.png",
         save_files,
+        calculate_insertion_and_deletion_metrics
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_probability_mask_black.png
@@ -213,6 +240,7 @@ def process_problem(
             original_idx,
             f"{folder_name}/{i}/{p_name}/masked_cutting_black_probability.png",
             save_files,
+            calculate_insertion_and_deletion_metrics
         )
     )
 
@@ -228,30 +256,37 @@ def process_problem(
         original_idx,
         f"{folder_name}/{i}/{p_name}/masked_inpaint_probability.png",
         save_files,
+        calculate_insertion_and_deletion_metrics
     )
 
-    return (
-        p_name,
-        best_score_black,
-        best_score_inpaint,
-        best_score_cutting_black,
-        quantity_score_black,
-        quantity_score_inpaint,
-        quantity_score_cutting_black,
-        probability_score_black,
-        probability_score_inpaint,
-        probability_score_cutting_black,
-        problem_time,
-        best_area_black,
-        best_area_inpaint,
-        best_area_cutting_black,
-        quantity_area_black,
-        quantity_area_inpaint,
-        quantity_area_cutting_black,
-        probability_area_black,
-        probability_area_inpaint,
-        probability_area_cutting_black,
-    )
+    return {
+        "p_name": p_name,
+        "best_score_black": best_score_black,
+        "best_score_inpaint": best_score_inpaint,
+        "best_score_cutting_black": best_score_cutting_black,
+        "quantity_score_black": quantity_score_black,
+        "quantity_score_inpaint": quantity_score_inpaint,
+        "quantity_score_cutting_black": quantity_score_cutting_black,
+        "probability_score_black": probability_score_black,
+        "probability_score_inpaint": probability_score_inpaint,
+        "probability_score_cutting_black": probability_score_cutting_black,
+        "problem_time": problem_time,
+        "best_area_black": best_area_black,
+        "best_area_inpaint": best_area_inpaint,
+        "best_area_cutting_black": best_area_cutting_black,
+        "quantity_area_black": quantity_area_black,
+        "quantity_area_inpaint": quantity_area_inpaint,
+        "quantity_area_cutting_black": quantity_area_cutting_black,
+        "probability_area_black": probability_area_black,
+        "probability_area_inpaint": probability_area_inpaint,
+        "probability_area_cutting_black": probability_area_cutting_black,
+        "quantity_insertion_deletion_metrics_black": quantity_insertion_deletion_metrics_black,
+        "quantity_insertion_deletion_metrics_inpaint": quantity_insertion_deletion_metrics_inpaint,
+        "quantity_insertion_deletion_metrics_cutting_black": quantity_insertion_deletion_metrics_cutting_black,
+        "probability_insertion_deletion_metrics_black": probability_insertion_deletion_metrics_black,
+        "probability_insertion_deletion_metrics_inpaint": probability_insertion_deletion_metrics_inpaint,
+        "probability_insertion_deletion_metrics_cutting_black": probability_insertion_deletion_metrics_cutting_black,
+    }
 
 
 def save_video(folder_name, i, p_name, res, p_heatmap, img):
@@ -289,14 +324,13 @@ def run_test(
     parallel=False,
     append=False,
     save_files=True,
+    calculate_insertion_and_deletion_metrics=False
 ):
     with keep.presenting():
         mode = "a" if append else "w"
         with open(f"{folder_name}/results.csv", mode) as f:
             if not append:
-                f.write(
-                    "idx,problem,original_score,best_score_black,best_score_inpaint,best_score_cutting_black,quantity_score_black,quantity_score_inpaint,quantity_score_cutting_black,probability_score_black,probability_score_inpaint,probability_score_cutting_black,threshold,time,best_area_black,best_area_inpaint,best_area_cutting_black,quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,probability_area_black,probability_area_inpaint,probability_area_cutting_black\n"
-                )
+                f.write(generate_csv_header())
 
             for i in tqdm(idxs):
                 try:
@@ -336,6 +370,7 @@ def run_test(
                                 problems,
                                 threshold,
                                 save_files,
+                                calculate_insertion_and_deletion_metrics
                             )
                             results.append(r)
                     else:
@@ -357,32 +392,9 @@ def run_test(
                     area_sum = 0
 
                     for r in results:
-                        (
-                            p_name,
-                            best_score_black,
-                            best_score_inpaint,
-                            best_score_cutting_black,
-                            quantity_score_black,
-                            quantity_score_inpaint,
-                            quantity_score_cutting_black,
-                            probability_score_black,
-                            probability_score_inpaint,
-                            probability_score_cutting_black,
-                            problem_time,
-                            best_area_black,
-                            best_area_inpaint,
-                            best_area_cutting_black,
-                            quantity_area_black,
-                            quantity_area_inpaint,
-                            quantity_area_cutting_black,
-                            probability_area_black,
-                            probability_area_inpaint,
-                            probability_area_cutting_black,
-                        ) = r
+                        quantity_area_black = r['quantity_area_black']
                         # idx,problem,original_score,best_score_black,best_score_inpaint,best_score_cutting_black,quantity_score_black,quantity_score_inpaint,quantity_score_cutting_black,probability_score_black,probability_score_inpaint,probability_score_cutting_black,threshold,time,best_area_black,best_area_inpaint,best_area_cutting_black,quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,probability_area_black,probability_area_inpaint,probability_area_cutting_black\n"
-                        f.write(
-                            f"{i},{p_name},{original_score:.4f},{best_score_black:.4f},{best_score_inpaint:.4f},{best_score_cutting_black:.4f},{quantity_score_black:.4f},{quantity_score_inpaint:.4f},{quantity_score_cutting_black:.4f},{probability_score_black:.4f},{probability_score_inpaint:.4f},{probability_score_cutting_black:.4f},{threshold},{problem_time:.4f},{best_area_black:.4f},{best_area_inpaint:.4f},{best_area_cutting_black:.4f},{quantity_area_black:.4f},{quantity_area_inpaint:.4f},{quantity_area_cutting_black:.4f},{probability_area_black:.4f},{probability_area_inpaint:.4f},{probability_area_cutting_black:.4f}\n"
-                        )
+                        f.write(generate_csv_line_methods(i, original_score, r))
                         f.flush()
                         area_sum += quantity_area_black
 
@@ -407,12 +419,11 @@ def run_test(
                             original_idx,
                             area_mean,
                             save_files,
+                            calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics
                         )
 
                         for method in literature_results:
-                            f.write(
-                                f"{i},{method},{original_score:.4f},{literature_results[method][0]:.4f},,{literature_results[method][3]:.4f},{literature_results[method][0]:.4f},,{literature_results[method][3]:.4f},{literature_results[method][0]:.4f},,{literature_results[method][3]:.4f},0.05,{literature_results[method][1]:.4f},{literature_results[method][2]:.4f},,{literature_results[method][4]:.4f},{literature_results[method][2]:.4f},,{literature_results[method][4]:.4f},{literature_results[method][2]:.4f},,{literature_results[method][4]:.4f}\n"
-                            )
+                            f.write(generate_csv_line_literature(i, method, original_score, literature_results))
                         f.flush()
 
                     plt.close("all")
@@ -425,3 +436,65 @@ def run_test(
                     with open(f"{folder_name}/error.txt", "a") as error_file:
                         error_file.write(f"Error processing image {i}: {e}\n")
                     continue
+
+def generate_csv_header():
+    return (
+        f"idx,problem,original_score,best_score_black,best_score_inpaint,"
+        f"best_score_cutting_black,quantity_score_black,quantity_score_inpaint,"
+        f"quantity_score_cutting_black,probability_score_black,probability_score_inpaint,"
+        f"probability_score_cutting_black,threshold,time,"
+        f"best_area_black,best_area_inpaint,best_area_cutting_black,"
+        f"quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,"
+        f"probability_area_black,probability_area_inpaint,probability_area_cutting_black,"
+        f"quantity_insertion_black,quantity_deletion_black,quantity_imd_black,"
+        f"quantity_insertion_inpaint,quantity_deletion_inpaint,quantity_imd_inpaint,"
+        f"probability_insertion_black,probability_deletion_black,probability_imd_black,"
+        f"probability_insertion_inpaint,probability_deletion_inpaint,probability_imd_inpaint\n"
+    )
+
+def generate_csv_line_literature(i, method, original_score, literature_results):
+    insertion = literature_results[method][5]['auc_insertion']
+    deletion = literature_results[method][5]['auc_deletion']
+    imd = literature_results[method][5]['imd']
+
+    return (
+        f"{i},{method},{original_score:.4f},{literature_results[method][0]:.4f},,"
+        f"{literature_results[method][3]:.4f},{literature_results[method][0]:.4f},,"
+        f"{literature_results[method][3]:.4f},{literature_results[method][0]:.4f},,"
+        f"{literature_results[method][3]:.4f},0.05,{literature_results[method][1]:.4f},"
+        f"{literature_results[method][2]:.4f},,{literature_results[method][4]:.4f},"
+        f"{literature_results[method][2]:.4f},,{literature_results[method][4]:.4f},"
+        f"{literature_results[method][2]:.4f},,{literature_results[method][4]:.4f},"
+        f"{insertion:.4f},{deletion:.4f},{imd:.4f},"
+        f"0,0,0,"
+        f"{insertion:.4f},{deletion:.4f},{imd:.4f},"
+        f"0,0,0\n"
+    )
+
+def generate_csv_line_methods(i, original_score, methods_results):
+    quantity_insertion_black = methods_results['quantity_insertion_deletion_metrics_black']['auc_insertion']
+    quantity_deletion_black = methods_results['quantity_insertion_deletion_metrics_black']['auc_deletion']
+    quantity_imd_black = methods_results['quantity_insertion_deletion_metrics_black']['imd']
+    quantity_insertion_inpaint = methods_results['quantity_insertion_deletion_metrics_inpaint']['auc_insertion']
+    quantity_deletion_inpaint = methods_results['quantity_insertion_deletion_metrics_inpaint']['auc_deletion']
+    quantity_imd_inpaint = methods_results['quantity_insertion_deletion_metrics_inpaint']['imd']
+    probability_insertion_black = methods_results['probability_insertion_deletion_metrics_black']['auc_insertion']
+    probability_deletion_black = methods_results['probability_insertion_deletion_metrics_black']['auc_deletion']
+    probability_imd_black = methods_results['probability_insertion_deletion_metrics_black']['imd']
+    probability_insertion_inpaint = methods_results['probability_insertion_deletion_metrics_inpaint']['auc_insertion']
+    probability_deletion_inpaint = methods_results['probability_insertion_deletion_metrics_inpaint']['auc_deletion']
+    probability_imd_inpaint = methods_results['probability_insertion_deletion_metrics_inpaint']['imd']
+
+    return (
+        f"{i},{methods_results['p_name']},{original_score:.4f},{methods_results['best_score_black']:.4f},"
+        f"{methods_results['best_score_inpaint']:.4f},{methods_results['best_score_cutting_black']:.4f},"
+        f"{methods_results['quantity_score_black']:.4f},{methods_results['quantity_score_inpaint']:.4f},{methods_results['quantity_score_cutting_black']:.4f},"
+        f"{methods_results['probability_score_black']:.4f},{methods_results['probability_score_inpaint']:.4f},{methods_results['probability_score_cutting_black']:.4f},"
+        f"{methods_results['problem_time']:.4f},{methods_results['best_area_black']:.4f},{methods_results['best_area_inpaint']:.4f},{methods_results['best_area_cutting_black']:.4f},"
+        f"{methods_results['quantity_area_black']:.4f},{methods_results['quantity_area_inpaint']:.4f},{methods_results['quantity_area_cutting_black']:.4f},"
+        f"{methods_results['probability_area_black']:.4f},{methods_results['probability_area_inpaint']:.4f},{methods_results['probability_area_cutting_black']:.4f},"
+        f"{quantity_insertion_black:.4f},{quantity_deletion_black:.4f},{quantity_imd_black:.4f},"
+        f"{quantity_insertion_inpaint:.4f},{quantity_deletion_inpaint:.4f},{quantity_imd_inpaint:.4f},"
+        f"{probability_insertion_black:.4f},{probability_deletion_black:.4f},{probability_imd_black:.4f},"
+        f"{probability_insertion_inpaint:.4f},{probability_deletion_inpaint:.4f},{probability_imd_inpaint:.4f}\n"
+    )

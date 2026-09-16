@@ -28,7 +28,7 @@ def get_score_and_save_literature(
     img_path,
     area_mean=-1,
     save_files=True,
-    calculate_insertion_deletion_metrics=False,
+    calculate_insertion_and_deletion_metrics=False,
 ):
     # save atributions heatmap
     if save_files:
@@ -42,7 +42,7 @@ def get_score_and_save_literature(
         plt.close()
 
     insertion_deletion_metrics = None
-    if calculate_insertion_deletion_metrics:
+    if calculate_insertion_and_deletion_metrics:
         insertion_deletion_metrics = compute_insertion_deletion_metrics(
             model_wrapper,
             img,
@@ -137,6 +137,7 @@ def run_literature(
     original_idx,
     area_mean=-1,
     save_files=True,
+    calculate_insertion_and_deletion_metrics=False,
 ):
     model = model_wrapper.get_pytorch_model()
     model.eval()
@@ -165,6 +166,7 @@ def run_literature(
             f"{folder_name}/{i}/{p_name}/masked_saliency.png",
             area_mean=area_mean,
             save_files=save_files,
+            calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
         )
     )
     saliency_time = final_time - initial_time
@@ -195,6 +197,7 @@ def run_literature(
         f"{folder_name}/{i}/{p_name}/masked_integrated_gradients.png",
         area_mean=area_mean,
         save_files=save_files,
+        calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
     )
     integrated_gradients_time = final_time - initial_time
 
@@ -216,6 +219,7 @@ def run_literature(
             f"{folder_name}/{i}/{p_name}/masked_guided_backprop.png",
             area_mean=area_mean,
             save_files=save_files,
+            calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,  
         )
     )
     guided_backprop_time = final_time - initial_time
@@ -240,6 +244,7 @@ def run_literature(
             f"{folder_name}/{i}/{p_name}/masked_guided_gradcam.png",
             area_mean=area_mean,
             save_files=save_files,
+            calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
         )
     )
     guided_gradcam_time = final_time - initial_time
@@ -263,6 +268,7 @@ def run_literature(
             f"{folder_name}/{i}/{p_name}/masked_layer_gradcam.png",
             area_mean=area_mean,
             save_files=save_files,
+            calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
         )
     )
     layer_gradcam_time = final_time - initial_time
@@ -274,6 +280,7 @@ def run_literature(
             saliency_area,
             saliency_inverse_score,
             1 - saliency_area,
+            saliency_insertion_deletion_metrics,
         ],
         "integrated_gradients_score": [
             integrated_gradients_score,
@@ -281,6 +288,7 @@ def run_literature(
             integrated_gradients_area,
             integrated_gradients_inverse_score,
             1 - integrated_gradients_area,
+            integrated_gradients_insertion_deletion_metrics,
         ],
         "guided_backprop_score": [
             guided_backprop_score,
@@ -288,6 +296,7 @@ def run_literature(
             guided_backprop_area,
             guided_backprop_inverse_score,
             1 - guided_backprop_area,
+            guided_backprop_insertion_deletion_metrics,
         ],
         "guided_gradcam_score": [
             guided_gradcam_score,
@@ -295,6 +304,7 @@ def run_literature(
             guided_gradcam_area,
             guided_gradcam_inverse_score,
             1 - guided_gradcam_area,
+            guided_gradcam_insertion_deletion_metrics,
         ],
         "layer_gradcam_score": [
             layer_gradcam_score,
@@ -302,5 +312,6 @@ def run_literature(
             layer_gradcam_area,
             layer_gradcam_inverse_score,
             1 - layer_gradcam_area,
+            layer_gradcam_insertion_deletion_metrics,
         ],
     }

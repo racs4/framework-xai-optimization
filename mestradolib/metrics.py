@@ -24,41 +24,22 @@ def topk_mask(attr, keep_ratio):
 
 
 def deletion(image, attribution_map, keep_ratio, baseline):
-    img = np.array(image.convert("RGB"), dtype=np.uint8)
     attr = np.asarray(attribution_map, dtype=np.float64)
-    attr = normalize_attribution_map(attr)
-    mask_keep = topk_mask(attr, keep_ratio)
+    mask_remove = topk_mask(attr, keep_ratio)
 
-    # imagem em HxWxC
-    img = np.array(image, copy=True)
-    img_ = img.copy()
-
-    h, w = img_.shape[:2]
-    for i in range(h):
-        for j in range(w):
-            if not mask_keep[i, j]:
-                img_[i, j] = baseline
+    img_ = np.array(image.convert("RGB"), dtype=np.uint8)
+    img_[mask_remove] = baseline
 
     return Image.fromarray(img_)
 
 
 def insertion(image, attribution_map, keep_ratio, baseline):
-    img = np.array(image.convert("RGB"), dtype=np.uint8)
     attr = np.asarray(attribution_map, dtype=np.float64)
-    attr = normalize_attribution_map(attr)
     mask_keep = topk_mask(attr, keep_ratio)
 
-    # imagem em HxWxC
-    img = np.array(baseline, dtype=np.uint8)
-    img_ = img.copy()
-
-    original = np.array(image, copy=True)
-
-    h, w = original.shape[:2]
-    for i in range(h):
-        for j in range(w):
-            if mask_keep[i, j]:
-                img_[i, j] = original[i, j]
+    original = np.array(image.convert("RGB"), dtype=np.uint8)
+    img_ = np.full_like(original, baseline)
+    img_[mask_keep] = original[mask_keep]
 
     return Image.fromarray(img_)
 
@@ -76,32 +57,44 @@ def compute_insertion_deletion_metrics(
     baseline=(0, 0, 0),
     step_count=100,
     percent_per_step=0.005,
+    save_files=False,
 ):
 
     insertion_curve = []
     deletion_curve = []
 
+    del_imgs_to_save = []
+    ins_imgs_to_save = []
+
     for step in range(1, step_count + 1):
-        keep_ratio = 1.0 - (step * percent_per_step)
+        keep_ratio = (step * percent_per_step)
 
         batch_del = []
         batch_ins = []
 
         # deleção
         del_img = deletion(image, attribution, keep_ratio, baseline)
+        # save img for debugging or visualization purposes
+        if save_files:
+            del_imgs_to_save.append(del_img)
         batch_del.append(del_img)
 
         # inserção
         ins_img = insertion(image, attribution, keep_ratio, baseline)
+        # save img for debugging or visualization purposes
+        if save_files:
+            ins_imgs_to_save.append(ins_img)
         batch_ins.append(ins_img)
 
         # avalia o modelo
-        del_score = model_wrapper.get_img_score(del_img, original_idx)
-        ins_score = model_wrapper.get_img_score(ins_img, original_idx)
+        del_score, _ = model_wrapper.get_img_score(del_img, original_idx)
+        ins_score, _ = model_wrapper.get_img_score(ins_img, original_idx)
 
         deletion_curve.append(del_score)
         insertion_curve.append(ins_score)
 
+    print("Insertion curve:", insertion_curve)
+    print("Deletion curve:", deletion_curve)
     auc_insertion = float(np.mean(insertion_curve))
     auc_deletion = float(np.mean(deletion_curve))
     imd_value = compute_imd(insertion_curve, deletion_curve)
@@ -112,4 +105,6 @@ def compute_insertion_deletion_metrics(
         "auc_insertion": auc_insertion,
         "auc_deletion": auc_deletion,
         "imd": imd_value,
+        "del_imgs_to_save": del_imgs_to_save,
+        "ins_imgs_to_save": ins_imgs_to_save,
     }
