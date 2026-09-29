@@ -357,7 +357,6 @@ class ModelWrapperOpenClip(ModelWrapper):
     def clip_encode_dense(self, x, n):
         vision_width = self.model.visual.transformer.width
         vision_heads = vision_width // 64
-        print("[vision_width and vision_heads]:", vision_width, vision_heads)
 
         # modified from CLIP
         x = x.half()
@@ -377,7 +376,6 @@ class ModelWrapperOpenClip(ModelWrapper):
         assert img_pos.size(0) == (
                     pos_h * pos_w), f"the size of pos_embedding ({img_pos.size(0)}) does not match resolution shape pos_h ({pos_h}) * pos_w ({pos_w})"
         img_pos = img_pos.reshape(1, pos_h, pos_w, img_pos.shape[1]).permute(0, 3, 1, 2)
-        print("[POS shape]:", img_pos.shape, (feah, feaw))
         img_pos = torch.nn.functional.interpolate(img_pos, size=(feah, feaw), mode='bicubic', align_corners=False)
         img_pos = img_pos.reshape(1, img_pos.shape[1], -1).permute(0, 2, 1)
         pos_embedding = torch.cat((tok_pos[None, ...], img_pos), dim=1)

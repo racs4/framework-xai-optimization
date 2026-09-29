@@ -5,7 +5,7 @@ from pyrecorder.writers.video import Video
 from pymoo.visualization.scatter import Scatter
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from mestradolib.grad_eclip import get_grad_eclip_img
+from mestradolib.grad_eclip import get_grad_eclip_poligons
 from mestradolib.model import *
 from mestradolib.problems import *
 from mestradolib.inpaint import *
@@ -71,10 +71,15 @@ def process_problem(
     if save_files:
         create_folder_if_not_exists(f"{folder_name}/{i}/{p_name}")
 
+    poligons = []
+    if with_grad_start:
+        assert isinstance(model_wrapper, ModelWrapperOpenClip)
+        poligons = get_grad_eclip_poligons(img, model_wrapper, threshold, problem.n_var)
+
     # minimize rectangle problem with problem
     start = time.time()
     res = minimize_rectangle_problem(
-        img, problem, model_wrapper, original_score, original_idx, 8
+        img, problem, model_wrapper, original_score, original_idx, 8, with_grad_start, poligons
     )
     end = time.time()
     problem_time = end - start
@@ -307,17 +312,17 @@ def run_test(
                     # save original image with index on {folder_name}/{idx}/original.png
                     img = get_img(i, data, use_train=False)
 
-                    if with_grad_start:
-                        img = get_grad_eclip_img(img, model_wrapper)
-
                     npixels = img.size[0] * img.size[1]
                     for p in problems:
                         if p.dynamic_variables:
-                            p.n_var = img.size[0] * img.size[1] // 16 + 1
+                            p.n_var = npixels // 16 + 1
+
+                            if p.n_var % 2 != 0:
+                                p.n_var += 1
 
                     if save_files:
                         create_folder_if_not_exists(f"{folder_name}/{i}")
-                        img.save(f"{folder_name}/{i}/original{"_EGrad_version" if with_grad_start else ""}.png")
+                        img.save(f"{folder_name}/{i}/original.png")
 
                     # _, pred_idx_img, outputs_img = learner.predict(img)  # type: ignore
                     # prob_img_original = outputs_img[pred_idx_img].item()
@@ -433,30 +438,109 @@ def run_test(
                     continue
 
 def summarize_results(folder_name):
-    with open(f"{folder_name}/results_summary.csv", "w") as summary_file:
-        results = dict()
+    results = dict()
+    process_result_file(folder_name, results)
 
-        process_result_file(folder_name, results)
+    sumarize_by_idx(folder_name, results)
+    sumarize_by_problem(folder_name, results)
 
+def sumarize_by_idx(folder_name, results):
+    with open(f"{folder_name}/results_summary_by_idx.csv", "w") as summary_file:
         summary_file.write(
-            "problem in idx,original_score,best_score_black,best_score_inpaint,best_score_cutting_black,quantity_score_black,quantity_score_inpaint,quantity_score_cutting_black,probability_score_black,probability_score_inpaint,probability_score_cutting_black,threshold,time,best_area_black,best_area_inpaint,best_area_cutting_black,quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,probability_area_black,probability_area_inpaint,probability_area_cutting_black\n"
+            "idx,"
+            "problem,"
+            "original_score,"
+            # "best_score_black,"
+            # "best_score_inpaint,"
+            "best_score_cutting_black,"
+            # "quantity_score_black,"
+            # "quantity_score_inpaint,"
+            "quantity_score_cutting_black,"
+            # "probability_score_black,"
+            # "probability_score_inpaint,"
+            "probability_score_cutting_black,"
+            # "threshold,"
+            "time,"
+            # "best_area_black,"
+            # "best_area_inpaint,"
+            "best_area_cutting_black,"
+            # "quantity_area_black,"
+            # "quantity_area_inpaint,"
+            "quantity_area_cutting_black,"
+            # "probability_area_black,"
+            # "probability_area_inpaint,"
+            "probability_area_cutting_black\n"
         )
 
-        for key, fields in results.items():
-            summary_file.write(f"{key}")
+        for key, problems in results.items():
+            for problem, fields in problems.items():
+                summary_file.write(f"{key}")
+                summary_file.write(f",{problem}")
 
-            for field, values in fields.items():
-                if values:
-                    mean = sum(values) / len(values)
-                else:
-                    mean = -1
+                write_cells(fields, summary_file)
 
-                cell = f"{mean:.4f}" if mean >= 0 else " - "
-                summary_file.write(f",{cell}")
+                summary_file.write(f"\n")
+
+        summary_file.close()
+
+
+def sumarize_by_problem(folder_name, results):
+    with open(f"{folder_name}/results_summary_by_problem.csv", "w") as summary_file:
+        summary_file.write(
+            "problem,"
+            "original_score,"
+            # "best_score_black,"
+            # "best_score_inpaint,"
+            "best_score_cutting_black,"
+            # "quantity_score_black,"
+            # "quantity_score_inpaint,"
+            "quantity_score_cutting_black,"
+            # "probability_score_black,"
+            # "probability_score_inpaint,"
+            "probability_score_cutting_black,"
+            # "threshold,"
+            "time,"
+            # "best_area_black,"
+            # "best_area_inpaint,"
+            "best_area_cutting_black,"
+            # "quantity_area_black,"
+            # "quantity_area_inpaint,"
+            "quantity_area_cutting_black,"
+            # "probability_area_black,"
+            # "probability_area_inpaint,"
+            "probability_area_cutting_black\n"
+        )
+
+        problem_values = {}
+        for key, problems in results.items():
+            for problem, fields in problems.items():
+                if problem not in problem_values.keys():
+                    problem_values[problem] = {}
+
+                for field, values in fields.items():
+                    if field not in problem_values[problem].keys():
+                        problem_values[problem][field] = values
+                    else:
+                        problem_values[problem][field] += values
+
+        for problem, values in problem_values.items():
+            summary_file.write(f"{problem}")
+
+            write_cells(values, summary_file)
 
             summary_file.write(f"\n")
 
         summary_file.close()
+
+def write_cells(fields, summary_file):
+    for field, values in fields.items():
+        if values:
+            mean = sum(values) / len(values)
+        else:
+            mean = -1
+
+        cell = f"{mean:.4f}" if mean >= 0 else " - "
+        summary_file.write(f",{cell}")
 
 def process_result_file(folder_name, results):
     with open(f"{folder_name}/results.csv", "r") as results_file:
@@ -487,39 +571,42 @@ def process_result_file(folder_name, results):
                 probability_area_cutting_black
             ) = result.split(",")
 
-            key = f"{idx} | {problem}"
+            key = f"{idx}"
 
             if key not in results.keys():
                 results[key] = {}
 
+            if problem not in results[key].keys():
+                results[key][problem] = {}
+
             values = {
                 "original_score": original_score,
-                "best_score_black": best_score_black,
-                "best_score_inpaint": best_score_inpaint,
+                # "best_score_black": best_score_black,
+                # "best_score_inpaint": best_score_inpaint,
                 "best_score_cutting_black": best_score_cutting_black,
-                "quantity_score_black": quantity_score_black,
-                "quantity_score_inpaint": quantity_score_inpaint,
+                # "quantity_score_black": quantity_score_black,
+                # "quantity_score_inpaint": quantity_score_inpaint,
                 "quantity_score_cutting_black": quantity_score_cutting_black,
-                "probability_score_black": probability_score_black,
-                "probability_score_inpaint": probability_score_inpaint,
+                # "probability_score_black": probability_score_black,
+                # "probability_score_inpaint": probability_score_inpaint,
                 "probability_score_cutting_black": probability_score_cutting_black,
-                "threshold": threshold,
+                # "threshold": threshold,
                 "time": time,
-                "best_area_black": best_area_black,
-                "best_area_inpaint": best_area_inpaint,
+                # "best_area_black": best_area_black,
+                # "best_area_inpaint": best_area_inpaint,
                 "best_area_cutting_black": best_area_cutting_black,
-                "quantity_area_black": quantity_area_black,
-                "quantity_area_inpaint": quantity_area_inpaint,
+                # "quantity_area_black": quantity_area_black,
+                # "quantity_area_inpaint": quantity_area_inpaint,
                 "quantity_area_cutting_black": quantity_area_cutting_black,
-                "probability_area_black": probability_area_black,
-                "probability_area_inpaint": probability_area_inpaint,
+                # "probability_area_black": probability_area_black,
+                # "probability_area_inpaint": probability_area_inpaint,
                 "probability_area_cutting_black": probability_area_cutting_black,
             }
 
             for field, value in values.items():
-                if field not in results[key].keys():
-                    results[key][field] = []
+                if field not in results[key][problem].keys():
+                    results[key][problem][field] = []
 
-                results[key][field].append(float(value))
+                results[key][problem][field].append(float(value))
 
         results_file.close()

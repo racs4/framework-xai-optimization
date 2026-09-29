@@ -1,4 +1,5 @@
 import numpy as np
+from pymoo.core.sampling import Sampling
 from pymoo.operators.sampling.rnd import IntegerRandomSampling
 from collections import deque
 
@@ -86,3 +87,33 @@ def make_contiguous_blob(mask):
     new_mask[visited] = 1
 
     return new_mask
+
+class PolygonSampling(Sampling):
+    def __init__(self, polygons, evaluation_object):
+        super().__init__()
+        self.polygons = polygons
+        self.evaluation_object = evaluation_object
+
+    def _do(self, problem, n_samples, **kwargs):
+        if len(self.polygons) == 0:
+            raise ValueError(
+                "None polygons detected."
+            )
+
+        xl = self.evaluation_object.xl
+        xu = self.evaluation_object.xu
+
+        samples = []
+        for i in range(n_samples):
+            polygon = self.polygons[ i % len(self.polygons) ]
+            vector = np.asarray(polygon, dtype=int).flatten()
+
+            if xl is not None:
+                vector = np.maximum(vector, xl)
+
+            if xu is not None:
+                vector = np.minimum(vector, xu)
+
+            samples.append(vector)
+
+        return np.asarray(samples, dtype=int)

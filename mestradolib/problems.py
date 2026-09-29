@@ -14,8 +14,11 @@ from pymoo.operators.sampling.lhs import LHS
 from pymoo.core.result import Result
 from PIL import Image, ImageDraw
 import torch
+
+from mestradolib.grad_eclip import get_grad_eclip_poligons
 from mestradolib.mask import *
-from mestradolib.model import ModelWrapper
+from mestradolib.model import ModelWrapper, ModelWrapperOpenClip
+from mestradolib.sampling import PolygonSampling
 from mestradolib.utils import *
 from mestradolib.inpaint import *
 from pymoo.optimize import minimize
@@ -90,6 +93,8 @@ def minimize_rectangle_problem(
     prob_img_original,
     pred_idx_original,
     n_proccess=8,
+    with_grad_start=False,
+    poligons=None
 ) -> Result:
 
     problem = VectorizedRectangleProblem(
@@ -102,7 +107,7 @@ def minimize_rectangle_problem(
 
     algorithm = NSGA2(
         pop_size=200,
-        sampling=IntegerRandomSampling(),
+        sampling=PolygonSampling(poligons, evaluation_object) if with_grad_start else IntegerRandomSampling(),
         crossover=evaluation_object.get_crossover(),
         mutation=evaluation_object.get_mutation(),
     )

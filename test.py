@@ -25,10 +25,10 @@ if __name__ == "__main__":
         #     data, model_arch=resnet18, name="resnet18", ds_name="imagenette"
         # )
         # model_wrapper = ModelWrapperFastAI(learner)
-        # model_wrapper = ModelWrapperClip("openai/clip-vit-base-patch32", labels=["horn", "head"])
-        model_wrapper = ModelWrapperOpenClip(labels=["horn", "head"])
+        # model_wrapper = ModelWrapperClip("openai/clip-vit-base-patch32", labels=["horn"])
+        model_wrapper = ModelWrapperOpenClip(labels=["horn"])
 
-        idxs = [337]  # [1130, 0, 60, 99, 95, 63, 65, 455]
+        idxs = [337, 60]  # [1130, 0, 60, 99, 95, 63, 65, 455]
         # idxs = np.random.randint(0, len(data.valid_ds), size=200)
         # idxs = list(range(1000, len(data.valid_ds)))
         problems = [
@@ -82,7 +82,7 @@ if __name__ == "__main__":
         folder_name = f"results/results_imagenette_{learner_folder}"
         create_folder_if_not_exists(folder_name)
 
-        for _ in range(10):
+        for _ in range(3):
             run_test(
                 folder_name,
                 idxs,
