@@ -169,6 +169,7 @@ def run_literature(
             calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
         )
     )
+    saliency_attribution = attribution
     saliency_time = final_time - initial_time
 
     integrated_gradients = IntegratedGradients(
@@ -199,6 +200,7 @@ def run_literature(
         save_files=save_files,
         calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
     )
+    integrated_gradients_attribution = attribution
     integrated_gradients_time = final_time - initial_time
 
     gbp = GuidedBackprop(model)
@@ -222,6 +224,7 @@ def run_literature(
             calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,  
         )
     )
+    guided_backprop_attribution = attribution
     guided_backprop_time = final_time - initial_time
 
     guided_gc = GuidedGradCam(model, find_last_conv2d(model))
@@ -247,6 +250,7 @@ def run_literature(
             calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
         )
     )
+    guided_gradcam_attribution = attribution
     guided_gradcam_time = final_time - initial_time
 
     layer_gc = LayerGradCam(model, find_last_conv2d(model))
@@ -271,6 +275,7 @@ def run_literature(
             calculate_insertion_and_deletion_metrics=calculate_insertion_and_deletion_metrics,
         )
     )
+    layer_gradcam_attribution = attribution
     layer_gradcam_time = final_time - initial_time
 
     return {
@@ -281,6 +286,7 @@ def run_literature(
             saliency_inverse_score,
             1 - saliency_area,
             saliency_insertion_deletion_metrics,
+            saliency_attribution,
         ],
         "integrated_gradients_score": [
             integrated_gradients_score,
@@ -289,6 +295,7 @@ def run_literature(
             integrated_gradients_inverse_score,
             1 - integrated_gradients_area,
             integrated_gradients_insertion_deletion_metrics,
+            integrated_gradients_attribution,
         ],
         "guided_backprop_score": [
             guided_backprop_score,
@@ -297,6 +304,7 @@ def run_literature(
             guided_backprop_inverse_score,
             1 - guided_backprop_area,
             guided_backprop_insertion_deletion_metrics,
+            guided_backprop_attribution,
         ],
         "guided_gradcam_score": [
             guided_gradcam_score,
@@ -305,6 +313,7 @@ def run_literature(
             guided_gradcam_inverse_score,
             1 - guided_gradcam_area,
             guided_gradcam_insertion_deletion_metrics,
+            guided_gradcam_attribution,
         ],
         "layer_gradcam_score": [
             layer_gradcam_score,
@@ -313,5 +322,6 @@ def run_literature(
             layer_gradcam_inverse_score,
             1 - layer_gradcam_area,
             layer_gradcam_insertion_deletion_metrics,
+            layer_gradcam_attribution,
         ],
     }

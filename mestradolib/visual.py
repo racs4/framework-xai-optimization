@@ -119,7 +119,8 @@ def get_masked_image_with_score(
         ),
         masked_image_score,
         area,
-        insertion_deletion_metrics
+        insertion_deletion_metrics,
+        heatmap
     )
 
 

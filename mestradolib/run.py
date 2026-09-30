@@ -1,4 +1,6 @@
+import base64
 import traceback
+import zlib
 
 from pyrecorder.recorder import Recorder
 from pyrecorder.writers.video import Video
@@ -28,7 +30,7 @@ def get_score_and_save(
     save_files=True,
     calculate_insertion_and_deletion_metrics=False,
 ):
-    img, score, area, insertion_deletion_metrics = get_masked_image_with_score(
+    img, score, area, insertion_deletion_metrics, heatmap = get_masked_image_with_score(
         img,
         res,
         threshold,
@@ -62,7 +64,7 @@ def get_score_and_save(
             del_img.save(del_path.replace(".png", f"_del_{idx}.png"))
         for idx, ins_img in enumerate(ins_imgs_to_save):
             ins_img.save(ins_path.replace(".png", f"_ins_{idx}.png"))
-    return score, area, insertion_deletion_metrics
+    return score, area, insertion_deletion_metrics, heatmap
 
 
 def process_problem(
@@ -112,7 +114,7 @@ def process_problem(
             img, res, p_heatmap, f"{folder_name}/{i}/{p_name}/heatmap_quantity.png"
         )
 
-    best_score_black, best_area_black, best_insertion_deletion_metrics_black = get_score_and_save(
+    best_score_black, best_area_black, best_insertion_deletion_metrics_black, best_heatmap_black = get_score_and_save(
         img,
         res,
         0.01,
@@ -126,7 +128,7 @@ def process_problem(
         calculate_insertion_and_deletion_metrics
     )
 
-    best_score_cutting_black, best_area_cutting_black, best_insertion_deletion_metrics_cutting_black = get_score_and_save(
+    best_score_cutting_black, best_area_cutting_black, best_insertion_deletion_metrics_cutting_black, best_heatmap_cutting_black = get_score_and_save(
         img,
         res,
         0.01,
@@ -140,7 +142,7 @@ def process_problem(
         calculate_insertion_and_deletion_metrics
     )
 
-    best_score_inpaint, best_area_inpaint, best_insertion_deletion_metrics_inpaint = get_score_and_save(
+    best_score_inpaint, best_area_inpaint, best_insertion_deletion_metrics_inpaint, best_heatmap_inpaint = get_score_and_save(
         img,
         res,
         0.01,
@@ -155,7 +157,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_quantity_mask_black.png
-    quantity_score_black, quantity_area_black, quantity_insertion_deletion_metrics_black = get_score_and_save(
+    quantity_score_black, quantity_area_black, quantity_insertion_deletion_metrics_black, quantity_heatmap_black = get_score_and_save(
         img,
         res,
         threshold,
@@ -170,7 +172,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_quantity_mask_black.png
-    quantity_score_cutting_black, quantity_area_cutting_black, quantity_insertion_deletion_metrics_cutting_black = get_score_and_save(
+    quantity_score_cutting_black, quantity_area_cutting_black, quantity_insertion_deletion_metrics_cutting_black, quantity_heatmap_cutting_black = get_score_and_save(
         img,
         res,
         threshold,
@@ -185,7 +187,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_quantity_mask_inpaint.png
-    quantity_score_inpaint, quantity_area_inpaint, quantity_insertion_deletion_metrics_inpaint = get_score_and_save(
+    quantity_score_inpaint, quantity_area_inpaint, quantity_insertion_deletion_metrics_inpaint, quantity_heatmap_inpaint = get_score_and_save(
         img,
         res,
         threshold,
@@ -213,7 +215,7 @@ def process_problem(
         )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_probability_mask_black.png
-    probability_score_black, probability_area_black, probability_insertion_deletion_metrics_black = get_score_and_save(
+    probability_score_black, probability_area_black, probability_insertion_deletion_metrics_black, probability_heatmap_black = get_score_and_save(
         img,
         res,
         threshold,
@@ -228,7 +230,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_probability_mask_black.png
-    probability_score_cutting_black, probability_area_cutting_black, probability_insertion_deletion_metrics_cutting_black = (
+    probability_score_cutting_black, probability_area_cutting_black, probability_insertion_deletion_metrics_cutting_black, probability_heatmap_cutting_black = (
         get_score_and_save(
             img,
             res,
@@ -245,7 +247,7 @@ def process_problem(
     )
 
     # save masked image on {folder_name}/{idx}/{problem_name}/heatmap_probability_mask_inpaint.png
-    probability_score_inpaint, probability_area_inpaint, probability_insertion_deletion_metrics_inpaint = get_score_and_save(
+    probability_score_inpaint, probability_area_inpaint, probability_insertion_deletion_metrics_inpaint, probability_heatmap_inpaint = get_score_and_save(
         img,
         res,
         threshold,
@@ -286,6 +288,15 @@ def process_problem(
         "probability_insertion_deletion_metrics_black": probability_insertion_deletion_metrics_black,
         "probability_insertion_deletion_metrics_inpaint": probability_insertion_deletion_metrics_inpaint,
         "probability_insertion_deletion_metrics_cutting_black": probability_insertion_deletion_metrics_cutting_black,
+        "best_heatmap_black": best_heatmap_black,
+        "best_heatmap_inpaint": best_heatmap_inpaint,
+        "best_heatmap_cutting_black": best_heatmap_cutting_black,
+        "quantity_heatmap_black": quantity_heatmap_black,
+        "quantity_heatmap_inpaint": quantity_heatmap_inpaint,
+        "quantity_heatmap_cutting_black": quantity_heatmap_cutting_black,
+        "probability_heatmap_black": probability_heatmap_black,
+        "probability_heatmap_inpaint": probability_heatmap_inpaint,
+        "probability_heatmap_cutting_black": probability_heatmap_cutting_black,
     }
 
 
@@ -394,7 +405,7 @@ def run_test(
                     for r in results:
                         quantity_area_black = r['quantity_area_black']
                         # idx,problem,original_score,best_score_black,best_score_inpaint,best_score_cutting_black,quantity_score_black,quantity_score_inpaint,quantity_score_cutting_black,probability_score_black,probability_score_inpaint,probability_score_cutting_black,threshold,time,best_area_black,best_area_inpaint,best_area_cutting_black,quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,probability_area_black,probability_area_inpaint,probability_area_cutting_black\n"
-                        f.write(generate_csv_line_methods(i, original_score, r))
+                        f.write(generate_csv_line_methods(i, original_score, threshold, r))
                         f.flush()
                         area_sum += quantity_area_black
 
@@ -437,6 +448,17 @@ def run_test(
                         error_file.write(f"Error processing image {i}: {e}\n")
                     continue
 
+def array_to_cell(array):
+    arr = np.asarray(array, dtype=np.float32)
+    raw = arr.tobytes()
+    compressed = zlib.compress(raw)
+    return base64.b64encode(compressed).decode("ascii")
+
+def cell_to_array(cell, shape, dtype=np.float32):
+    compressed = base64.b64decode(cell)
+    raw = zlib.decompress(compressed)
+    return np.frombuffer(raw, dtype=dtype).reshape(shape)
+
 def generate_csv_header():
     return (
         f"idx,problem,original_score,best_score_black,best_score_inpaint,"
@@ -446,16 +468,23 @@ def generate_csv_header():
         f"best_area_black,best_area_inpaint,best_area_cutting_black,"
         f"quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,"
         f"probability_area_black,probability_area_inpaint,probability_area_cutting_black,"
-        f"quantity_insertion_black,quantity_deletion_black,quantity_imd_black,"
-        f"quantity_insertion_inpaint,quantity_deletion_inpaint,quantity_imd_inpaint,"
-        f"probability_insertion_black,probability_deletion_black,probability_imd_black,"
-        f"probability_insertion_inpaint,probability_deletion_inpaint,probability_imd_inpaint\n"
+        f"quantity_insertion_black,quantity_deletion_black,quantity_imd_black,quantity_insertion_curve_black,quantity_deletion_curve_black,"
+        f"quantity_insertion_inpaint,quantity_deletion_inpaint,quantity_imd_inpaint,quantity_insertion_curve_inpaint,quantity_deletion_curve_inpaint,"
+        f"probability_insertion_black,probability_deletion_black,probability_imd_black,probability_insertion_curve_black,probability_deletion_curve_black,"
+        f"probability_insertion_inpaint,probability_deletion_inpaint,probability_imd_inpaint,probability_insertion_curve_inpaint,probability_deletion_curve_inpaint,"
+        f"quantity_heatmap_black,"
+        f"n_steps,heatmap_shape_1,heatmap_shape_2\n"
     )
 
 def generate_csv_line_literature(i, method, original_score, literature_results):
     insertion = literature_results[method][5]['auc_insertion']
     deletion = literature_results[method][5]['auc_deletion']
     imd = literature_results[method][5]['imd']
+    insertion_curve = array_to_cell(literature_results[method][5]['insertion_curve'])
+    deletion_curve = array_to_cell(literature_results[method][5]['deletion_curve'])
+    heatmap_shape_1 = literature_results[method][6].shape[0]
+    heatmap_shape_2 = literature_results[method][6].shape[1]
+    attribution = array_to_cell(literature_results[method][6])
 
     return (
         f"{i},{method},{original_score:.4f},{literature_results[method][0]:.4f},,"
@@ -465,36 +494,50 @@ def generate_csv_line_literature(i, method, original_score, literature_results):
         f"{literature_results[method][2]:.4f},,{literature_results[method][4]:.4f},"
         f"{literature_results[method][2]:.4f},,{literature_results[method][4]:.4f},"
         f"{literature_results[method][2]:.4f},,{literature_results[method][4]:.4f},"
-        f"{insertion:.4f},{deletion:.4f},{imd:.4f},"
-        f"0,0,0,"
-        f"{insertion:.4f},{deletion:.4f},{imd:.4f},"
-        f"0,0,0\n"
+        f"{insertion:.4f},{deletion:.4f},{imd:.4f},{insertion_curve},{deletion_curve},"
+        f"0,0,0,,,"
+        f"{insertion:.4f},{deletion:.4f},{imd:.4f},{insertion_curve},{deletion_curve},"
+        f"0,0,0,,,"
+        f"{attribution},"
+        f"{100},{heatmap_shape_1},{heatmap_shape_2}\n"
     )
 
-def generate_csv_line_methods(i, original_score, methods_results):
+def generate_csv_line_methods(i, original_score, threshold, methods_results):
     quantity_insertion_black = methods_results['quantity_insertion_deletion_metrics_black']['auc_insertion']
     quantity_deletion_black = methods_results['quantity_insertion_deletion_metrics_black']['auc_deletion']
     quantity_imd_black = methods_results['quantity_insertion_deletion_metrics_black']['imd']
+    quantity_insertion_curve_black = methods_results['quantity_insertion_deletion_metrics_black']['insertion_curve']
+    quantity_deletion_curve_black = methods_results['quantity_insertion_deletion_metrics_black']['deletion_curve']
     quantity_insertion_inpaint = methods_results['quantity_insertion_deletion_metrics_inpaint']['auc_insertion']
     quantity_deletion_inpaint = methods_results['quantity_insertion_deletion_metrics_inpaint']['auc_deletion']
     quantity_imd_inpaint = methods_results['quantity_insertion_deletion_metrics_inpaint']['imd']
+    quantity_insertion_curve_inpaint = methods_results['quantity_insertion_deletion_metrics_inpaint']['insertion_curve']
+    quantity_deletion_curve_inpaint = methods_results['quantity_insertion_deletion_metrics_inpaint']['deletion_curve']
     probability_insertion_black = methods_results['probability_insertion_deletion_metrics_black']['auc_insertion']
     probability_deletion_black = methods_results['probability_insertion_deletion_metrics_black']['auc_deletion']
     probability_imd_black = methods_results['probability_insertion_deletion_metrics_black']['imd']
+    probability_insertion_curve_black = methods_results['probability_insertion_deletion_metrics_black']['insertion_curve']
+    probability_deletion_curve_black = methods_results['probability_insertion_deletion_metrics_black']['deletion_curve']
     probability_insertion_inpaint = methods_results['probability_insertion_deletion_metrics_inpaint']['auc_insertion']
     probability_deletion_inpaint = methods_results['probability_insertion_deletion_metrics_inpaint']['auc_deletion']
     probability_imd_inpaint = methods_results['probability_insertion_deletion_metrics_inpaint']['imd']
+    probability_insertion_curve_inpaint = methods_results['probability_insertion_deletion_metrics_inpaint']['insertion_curve']
+    probability_deletion_curve_inpaint = methods_results['probability_insertion_deletion_metrics_inpaint']['deletion_curve']
+    heatmap_shape_1 = methods_results['quantity_heatmap_black'].shape[0]
+    heatmap_shape_2 = methods_results['quantity_heatmap_black'].shape[1]
 
     return (
         f"{i},{methods_results['p_name']},{original_score:.4f},{methods_results['best_score_black']:.4f},"
         f"{methods_results['best_score_inpaint']:.4f},{methods_results['best_score_cutting_black']:.4f},"
         f"{methods_results['quantity_score_black']:.4f},{methods_results['quantity_score_inpaint']:.4f},{methods_results['quantity_score_cutting_black']:.4f},"
-        f"{methods_results['probability_score_black']:.4f},{methods_results['probability_score_inpaint']:.4f},{methods_results['probability_score_cutting_black']:.4f},"
+        f"{methods_results['probability_score_black']:.4f},{methods_results['probability_score_inpaint']:.4f},{methods_results['probability_score_cutting_black']:.4f},{threshold},"
         f"{methods_results['problem_time']:.4f},{methods_results['best_area_black']:.4f},{methods_results['best_area_inpaint']:.4f},{methods_results['best_area_cutting_black']:.4f},"
         f"{methods_results['quantity_area_black']:.4f},{methods_results['quantity_area_inpaint']:.4f},{methods_results['quantity_area_cutting_black']:.4f},"
         f"{methods_results['probability_area_black']:.4f},{methods_results['probability_area_inpaint']:.4f},{methods_results['probability_area_cutting_black']:.4f},"
-        f"{quantity_insertion_black:.4f},{quantity_deletion_black:.4f},{quantity_imd_black:.4f},"
-        f"{quantity_insertion_inpaint:.4f},{quantity_deletion_inpaint:.4f},{quantity_imd_inpaint:.4f},"
-        f"{probability_insertion_black:.4f},{probability_deletion_black:.4f},{probability_imd_black:.4f},"
-        f"{probability_insertion_inpaint:.4f},{probability_deletion_inpaint:.4f},{probability_imd_inpaint:.4f}\n"
+        f"{quantity_insertion_black:.4f},{quantity_deletion_black:.4f},{quantity_imd_black:.4f},{array_to_cell(quantity_insertion_curve_black)},{array_to_cell(quantity_deletion_curve_black)},"
+        f"{quantity_insertion_inpaint:.4f},{quantity_deletion_inpaint:.4f},{quantity_imd_inpaint:.4f},{array_to_cell(quantity_insertion_curve_inpaint)},{array_to_cell(quantity_deletion_curve_inpaint)},"
+        f"{probability_insertion_black:.4f},{probability_deletion_black:.4f},{probability_imd_black:.4f},{array_to_cell(probability_insertion_curve_black)},{array_to_cell(probability_deletion_curve_black)},"
+        f"{probability_insertion_inpaint:.4f},{probability_deletion_inpaint:.4f},{probability_imd_inpaint:.4f},{array_to_cell(probability_insertion_curve_inpaint)},{array_to_cell(probability_deletion_curve_inpaint)},"
+        f"{array_to_cell(methods_results['quantity_heatmap_black'])},"
+        f"{100},{heatmap_shape_1},{heatmap_shape_2}\n"
     )

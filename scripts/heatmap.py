@@ -34,69 +34,80 @@ def print_raw_data_structure(raw_data):
                     print(f"      Problem: {problem}")
 
 
-def nemenyi_letters_by_problem(values_by_problem):
-    """
-    values_by_problem: dict {problema: [valores...]}
-    Retorna dict {problema: letra}
-    """
+def nemenyi_letters_by_problem(values_by_problem, higher_is_better=True):
     problems = list(values_by_problem.keys())
-    if len(problems) < 2:
-        return {p: "A" for p in problems}
 
-    arrays = [np.asarray(values_by_problem[p], dtype=float) for p in problems]
+    if len(problems) < 2:
+        return {problem: "A" for problem in problems}
+
+    arrays = [
+        np.asarray(values_by_problem[problem], dtype=float)
+        for problem in problems
+    ]
 
     _, p_kw = kruskal(*arrays)
+
     if p_kw > 0.05:
-        return {p: "A" for p in problems}
+        return {problem: "A" for problem in problems}
 
     p_matrix = pd.DataFrame(sp.posthoc_nemenyi(arrays))
     p_matrix.index = problems
     p_matrix.columns = problems
 
-    means = {p: float(np.mean(values_by_problem[p])) for p in problems}
-    order = sorted(problems, key=lambda p: means[p], reverse=False)
+    means = {
+        problem: float(np.mean(values_by_problem[problem]))
+        for problem in problems
+    }
 
-    adjacency = {p: set() for p in problems}
-    for i, p1 in enumerate(order):
-        for p2 in order[i + 1:]:
-            if p_matrix.loc[p1, p2] > 0.05:
-                adjacency[p1].add(p2)
-                adjacency[p2].add(p1)
-                print(
-                    f"Problemas {p1} e {p2} não são significativamente diferentes (p={p_matrix.loc[p1, p2]:.4f})")
-            else:
-                print(
-                    f"Problemas {p1} e {p2} são significativamente diferentes (p={p_matrix.loc[p1, p2]:.4f})")
+    order = sorted(
+        problems,
+        key=lambda problem: means[problem],
+        reverse=higher_is_better,
+    )
+
+    adjacency = {problem: set() for problem in problems}
+
+    for index, problem_1 in enumerate(order):
+        for problem_2 in order[index + 1:]:
+            if p_matrix.loc[problem_1, problem_2] > 0.05:
+                adjacency[problem_1].add(problem_2)
+                adjacency[problem_2].add(problem_1)
 
     visited = set()
     groups = []
-    for p in order:
-        if p in visited:
+
+    for problem in order:
+        if problem in visited:
             continue
-        stack = [p]
-        comp = set()
+
+        stack = [problem]
+        group = set()
+
         while stack:
-            node = stack.pop()
-            if node in visited:
+            current = stack.pop()
+
+            if current in visited:
                 continue
-            visited.add(node)
-            comp.add(node)
-            for n in adjacency[node]:
-                if n not in visited:
-                    stack.append(n)
-        groups.append(sorted(comp, key=lambda x: means[x], reverse=True))
 
+            visited.add(current)
+            group.add(current)
+
+            for neighbor in adjacency[current]:
+                if neighbor not in visited:
+                    stack.append(neighbor)
+
+        groups.append(group)
+
+    # Os grupos já começam pelo melhor valor.
     labels = {}
-    for idx, group in enumerate(groups):
-        letter = chr(65 + idx)
-        for p in group:
-            labels[p] = letter
 
-    for p in problems:
-        labels.setdefault(p, chr(65 + len(groups)))
+    for group_index, group in enumerate(groups):
+        letter = chr(65 + group_index)
+
+        for problem in group:
+            labels[problem] = letter
 
     return labels
-
 
 def extract_model_dataset(folder_name):
     """Extrai modelo e dataset do nome da pasta."""
@@ -115,7 +126,18 @@ def generate_complete_heatmap(csv_paths):
     """Cria uma grade 3x3 de heatmaps para Score, Área e Tempo por Dataset."""
 
     # Estrutura para armazenar dados: metrics_data[metrica][dataset][problema][modelo] = valor
-    metrics = ['Score', 'Área', 'Tempo']
+    metrics = ['Score', 'Área', 'Tempo', 'Inserção', 'Deleção', 'IMD']
+    metric_higher_is_better = {
+        "Score": False,
+        "Área": False,
+        "Tempo": False,
+        "Inserção": True,
+        "Deleção": False,
+        "IMD": True,
+    }
+    min_max = {
+        "Score": (0, 1),
+    }
     data_struct = {m: {} for m in metrics}
     raw_data = {m: {} for m in metrics}
 
@@ -136,7 +158,10 @@ def generate_complete_heatmap(csv_paths):
         grouped = df.groupby('problem').agg({
             'fi_important': 'mean',
             'quantity_area_black': 'mean',  # <-- AJUSTE O NOME DA COLUNA DE ÁREA SE NECESSÁRIO
-            'time': 'mean'   # <-- AJUSTE O NOME DA COLUNA DE TEMPO SE NECESSÁRIO
+            'time': 'mean',   # <-- AJUSTE O NOME DA COLUNA DE TEMPO SE NECESSÁRIO
+            'quantity_insertion_black': 'mean',
+            'quantity_deletion_black': 'mean',
+            'quantity_imd_black': 'mean',
         }).reset_index()
 
         for m in metrics:
@@ -148,6 +173,9 @@ def generate_complete_heatmap(csv_paths):
             "Score": "fi_important",
             "Área": "quantity_area_black",
             "Tempo": "time",
+            "Inserção": "quantity_insertion_black",
+            "Deleção": "quantity_deletion_black",
+            "IMD": "quantity_imd_black"
         }.items():
             raw_data[metric].setdefault(dataset, {})
             raw_data[metric][dataset].setdefault(model, {})
@@ -161,7 +189,7 @@ def generate_complete_heatmap(csv_paths):
         for idx, row in grouped.iterrows():
             problem = row['problem']
 
-            for m, col_name in zip(metrics, ['fi_important', 'quantity_area_black', 'time']):
+            for m, col_name in zip(metrics, ['fi_important', 'quantity_area_black', 'time', 'quantity_insertion_black', 'quantity_deletion_black', 'quantity_imd_black']):
                 if problem not in data_struct[m][dataset]:
                     data_struct[m][dataset][problem] = {}
                 data_struct[m][dataset][problem][model] = row[col_name]
@@ -179,7 +207,10 @@ def generate_complete_heatmap(csv_paths):
                         p: raw_data[metric][dataset][model].get(p, [])
                         for p in raw_data[metric][dataset][model]
                     }
-                    letters = nemenyi_letters_by_problem(values_by_problem)
+                    letters = nemenyi_letters_by_problem(
+                        values_by_problem,
+                        higher_is_better=metric_higher_is_better[metric],
+                    )
                     significance_map[metric][dataset][model] = letters
 
     # Calcular média geral do SCORE para manter a ordenação consistente de linhas
@@ -203,14 +234,17 @@ def generate_complete_heatmap(csv_paths):
                         'ResNet-18': 'resnet18', 'VGG-16 BN': 'vgg16bn'}
 
     # Reduzimos a altura (figsize de 14 para 10) e aproximamos as linhas (hspace=0.08)
-    fig, axes = plt.subplots(3, 3, figsize=(12, 12), sharey=True,
+    fig, axes = plt.subplots(len(metrics), len(dataset_order), figsize=(12, 24), sharey=True,
                              gridspec_kw={'wspace': 0.05, 'hspace': 0.08, 'bottom': 0.05})
 
     # Configurações de cores por métrica
     metric_configs = {
         'Score': {'cmap': 'viridis_r'},
         'Área':  {'cmap': 'viridis_r'},
-        'Tempo': {'cmap': 'viridis_r'}
+        'Tempo': {'cmap': 'viridis_r'},
+        'Inserção': {'cmap': 'viridis'},
+        'Deleção': {'cmap': 'viridis_r'},
+        'IMD': {'cmap': 'viridis'}
     }
 
     # Loop pelas Linhas (Métricas) e Colunas (Datasets)
@@ -220,7 +254,7 @@ def generate_complete_heatmap(csv_paths):
 
         all_values = [v for ds_data in data_struct[metric].values()
                       for p_data in ds_data.values() for v in p_data.values()]
-        v_min, v_max = (0, 1) if metric == 'Score' else (
+        v_min, v_max = min_max[metric] if metric in min_max else (
             min(all_values), max(all_values))
 
         for col_idx, (dataset, problems_data) in enumerate(sorted_datasets):
@@ -280,7 +314,7 @@ def generate_complete_heatmap(csv_paths):
                 ax.yaxis.set_visible(False)
 
             # Ajustar rótulos do eixo X (Modelos) apenas na última linha
-            if row_idx == 2:
+            if row_idx == len(metrics) - 1:
                 ax.tick_params(axis='x', rotation=15, labelsize=10)
             else:
                 ax.set_xlabel('')
@@ -294,16 +328,19 @@ def generate_complete_heatmap(csv_paths):
 
 
 # Uso com múltiplos CSVs de diferentes modelos e datasets
-csv_files = [
-    '/Users/rheidner/Downloads/results/results_cars_squeezenet10_article/results.csv',
-    '/Users/rheidner/Downloads/results/results_cars_resnet18_article/results.csv',
-    '/Users/rheidner/Downloads/results/results_cars_vgg16bn_article/results.csv',
-    '/Users/rheidner/Downloads/results/results_imagewoof_squeezenet10_article/results.csv',
-    '/Users/rheidner/Downloads/results/results_imagewoof_resnet18_article/results.csv',
-    '/Users/rheidner/Downloads/results/results_imagewoof_vgg16bn_article/results.csv',
-    '/Users/rheidner/Downloads/results/results_imagenette_squeezenet10_article/results.csv',
-    '/Users/rheidner/Downloads/results/results_imagenette_resnet18_article/results.csv',
-    '/Users/rheidner/Downloads/results/results_imagenette_vgg16bn_article/results.csv',
+# csv_files = [
+#     '/Users/rheidner/Downloads/results/results_cars_squeezenet10_article/results.csv',
+#     '/Users/rheidner/Downloads/results/results_cars_resnet18_article/results.csv',
+#     '/Users/rheidner/Downloads/results/results_cars_vgg16bn_article/results.csv',
+#     '/Users/rheidner/Downloads/results/results_imagewoof_squeezenet10_article/results.csv',
+#     '/Users/rheidner/Downloads/results/results_imagewoof_resnet18_article/results.csv',
+#     '/Users/rheidner/Downloads/results/results_imagewoof_vgg16bn_article/results.csv',
+#     '/Users/rheidner/Downloads/results/results_imagenette_squeezenet10_article/results.csv',
+#     '/Users/rheidner/Downloads/results/results_imagenette_resnet18_article/results.csv',
+#     '/Users/rheidner/Downloads/results/results_imagenette_vgg16bn_article/results.csv',
+# ]
+csv_files =[
+    "C:\\Users\\JARVIS\\Documents\\framework-xai-optimization\\results\\results_imagenette_clip2\\results.csv"
 ]
 
 generate_complete_heatmap(csv_files)
