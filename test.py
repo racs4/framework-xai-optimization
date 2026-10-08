@@ -68,7 +68,7 @@ if __name__ == "__main__":
                 problem_best_image=create_mask_best_image,
                 problem_heatmap=create_mask_heatmap,
                 problem_probability_heatmap=create_mask_probability_heatmap,
-                problem_name="ipha_flavio_marcelo_v",
+                problem_name="IPHA-GA",
             ),
         ]
         apply_methods = [

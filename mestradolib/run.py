@@ -64,17 +64,21 @@ def process_problem(
     p_probability_heatmap = problem.problem_probability_heatmap
     p_name = problem.problem_name
 
+    poligons_extraction_start = 0
+    poligons_extraction_end = 0
+    poligons = []
     if with_grad_start:
+        assert isinstance(model_wrapper, ModelWrapperOpenClip)
+
+        poligons_extraction_start = time.time()
+        poligons = get_grad_eclip_poligons(img, model_wrapper, threshold, problem.n_var)
+        poligons_extraction_end = time.time()
+
         p_name += f" with EGrad"
 
     problem.add_img(img)
     if save_files:
         create_folder_if_not_exists(f"{folder_name}/{i}/{p_name}")
-
-    poligons = []
-    if with_grad_start:
-        assert isinstance(model_wrapper, ModelWrapperOpenClip)
-        poligons = get_grad_eclip_poligons(img, model_wrapper, threshold, problem.n_var)
 
     # minimize rectangle problem with problem
     start = time.time()
@@ -83,6 +87,7 @@ def process_problem(
     )
     end = time.time()
     problem_time = end - start
+    poligons_extraction_time = poligons_extraction_end - poligons_extraction_start
     print(f"Tempo para {p_name} na imagem {i}: {end - start:.2f} segundos")
 
     save_video(
@@ -259,6 +264,7 @@ def process_problem(
         probability_area_black,
         probability_area_inpaint,
         probability_area_cutting_black,
+        poligons_extraction_time
     )
 
 
@@ -304,7 +310,7 @@ def run_test(
         with open(f"{folder_name}/results.csv", mode) as f:
             if not append:
                 f.write(
-                    "idx,problem,original_score,best_score_black,best_score_inpaint,best_score_cutting_black,quantity_score_black,quantity_score_inpaint,quantity_score_cutting_black,probability_score_black,probability_score_inpaint,probability_score_cutting_black,threshold,time,best_area_black,best_area_inpaint,best_area_cutting_black,quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,probability_area_black,probability_area_inpaint,probability_area_cutting_black\n"
+                    "idx,problem,original_score,best_score_black,best_score_inpaint,best_score_cutting_black,quantity_score_black,quantity_score_inpaint,quantity_score_cutting_black,probability_score_black,probability_score_inpaint,probability_score_cutting_black,threshold,time,best_area_black,best_area_inpaint,best_area_cutting_black,quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,probability_area_black,probability_area_inpaint,probability_area_cutting_black,egrad_poligons_time\n"
                 )
 
             for i in tqdm(idxs):
@@ -391,10 +397,11 @@ def run_test(
                             probability_area_black,
                             probability_area_inpaint,
                             probability_area_cutting_black,
+                            egrad_poligons_time
                         ) = r
-                        # idx,problem,original_score,best_score_black,best_score_inpaint,best_score_cutting_black,quantity_score_black,quantity_score_inpaint,quantity_score_cutting_black,probability_score_black,probability_score_inpaint,probability_score_cutting_black,threshold,time,best_area_black,best_area_inpaint,best_area_cutting_black,quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,probability_area_black,probability_area_inpaint,probability_area_cutting_black\n"
+                        # idx,problem,original_score,best_score_black,best_score_inpaint,best_score_cutting_black,quantity_score_black,quantity_score_inpaint,quantity_score_cutting_black,probability_score_black,probability_score_inpaint,probability_score_cutting_black,threshold,time,best_area_black,best_area_inpaint,best_area_cutting_black,quantity_area_black,quantity_area_inpaint,quantity_area_cutting_black,probability_area_black,probability_area_inpaint,probability_area_cutting_black,egrad_poligons_time\n"
                         f.write(
-                            f"{i},{p_name},{original_score:.4f},{best_score_black:.4f},{best_score_inpaint:.4f},{best_score_cutting_black:.4f},{quantity_score_black:.4f},{quantity_score_inpaint:.4f},{quantity_score_cutting_black:.4f},{probability_score_black:.4f},{probability_score_inpaint:.4f},{probability_score_cutting_black:.4f},{threshold},{problem_time:.4f},{best_area_black:.4f},{best_area_inpaint:.4f},{best_area_cutting_black:.4f},{quantity_area_black:.4f},{quantity_area_inpaint:.4f},{quantity_area_cutting_black:.4f},{probability_area_black:.4f},{probability_area_inpaint:.4f},{probability_area_cutting_black:.4f}\n"
+                            f"{i},{p_name},{original_score:.4f},{best_score_black:.4f},{best_score_inpaint:.4f},{best_score_cutting_black:.4f},{quantity_score_black:.4f},{quantity_score_inpaint:.4f},{quantity_score_cutting_black:.4f},{probability_score_black:.4f},{probability_score_inpaint:.4f},{probability_score_cutting_black:.4f},{threshold},{problem_time:.4f},{best_area_black:.4f},{best_area_inpaint:.4f},{best_area_cutting_black:.4f},{quantity_area_black:.4f},{quantity_area_inpaint:.4f},{quantity_area_cutting_black:.4f},{probability_area_black:.4f},{probability_area_inpaint:.4f},{probability_area_cutting_black:.4f},{egrad_poligons_time:.4f}\n"
                         )
                         f.flush()
                         area_sum += quantity_area_black
@@ -469,7 +476,8 @@ def sumarize_by_idx(folder_name, results):
             "quantity_area_cutting_black,"
             # "probability_area_black,"
             # "probability_area_inpaint,"
-            "probability_area_cutting_black\n"
+            "probability_area_cutting_black,"
+            "egrad_poligons_time\n"
         )
 
         for key, problems in results.items():
@@ -508,7 +516,8 @@ def sumarize_by_problem(folder_name, results):
             "quantity_area_cutting_black,"
             # "probability_area_black,"
             # "probability_area_inpaint,"
-            "probability_area_cutting_black\n"
+            "probability_area_cutting_black,"
+            "egrad_poligons_time\n"
         )
 
         problem_values = {}
@@ -568,7 +577,8 @@ def process_result_file(folder_name, results):
                 quantity_area_cutting_black,
                 probability_area_black,
                 probability_area_inpaint,
-                probability_area_cutting_black
+                probability_area_cutting_black,
+                egrad_poligons_time
             ) = result.split(",")
 
             key = f"{idx}"
@@ -601,6 +611,7 @@ def process_result_file(folder_name, results):
                 # "probability_area_black": probability_area_black,
                 # "probability_area_inpaint": probability_area_inpaint,
                 "probability_area_cutting_black": probability_area_cutting_black,
+                "egrad_poligons_time": egrad_poligons_time
             }
 
             for field, value in values.items():
