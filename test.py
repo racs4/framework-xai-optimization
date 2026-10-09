@@ -28,8 +28,8 @@ if __name__ == "__main__":
         # model_wrapper = ModelWrapperClip("openai/clip-vit-base-patch32", labels=["horn"])
         model_wrapper = ModelWrapperOpenClip(labels=["horn"])
 
-        idxs = [337, 60]  # [1130, 0, 60, 99, 95, 63, 65, 455]
-        # idxs = np.random.randint(0, len(data.valid_ds), size=200)
+        # idxs = [337, 60]  # [1130, 0, 60, 99, 95, 63, 65, 455]
+        idxs = np.random.randint(0, len(data.valid_ds), size=100)
         # idxs = list(range(1000, len(data.valid_ds)))
         problems = [
             MenorProbalidadeMenorAreaVectorized(

@@ -336,6 +336,10 @@ class ModelWrapperOpenClip(ModelWrapper):
         return self.model
 
     def attention_layer(self, q, k, v, num_heads=1):
+        q = q.to(self.device)
+        k = k.to(self.device)
+        v = v.to(self.device)
+
         # "Compute 'Scaled Dot Product Attention'"
         tgt_len, bsz, embed_dim = q.shape
         head_dim = embed_dim // num_heads
@@ -355,21 +359,23 @@ class ModelWrapperOpenClip(ModelWrapper):
         return attn_output, attn_output_weights
 
     def clip_encode_dense(self, x, n):
+        self.model.to(device=self.device)
+
         vision_width = self.model.visual.transformer.width
         vision_heads = vision_width // 64
 
         # modified from CLIP
-        x = x.half()
+        x = x.half().cuda()
         x = self.model.visual.conv1(x)
         feah, feaw = x.shape[-2:]
 
         x = x.reshape(x.shape[0], x.shape[1], -1)
         x = x.permute(0, 2, 1)
-        class_embedding = self.model.visual.class_embedding.to(x.dtype)
+        class_embedding = self.model.visual.class_embedding.to(device=self.device, dtype=x.dtype)
         x = torch.cat([class_embedding + torch.zeros(x.shape[0], 1, x.shape[-1]).to(x), x], dim=1)
 
         ## scale position embedding as the image w-h ratio
-        pos_embedding = self.model.visual.positional_embedding.to(x.dtype)
+        pos_embedding = self.model.visual.positional_embedding.to(device=self.device, dtype=x.dtype)
         tok_pos, img_pos = pos_embedding[:1, :], pos_embedding[1:, :]
         pos_h = self.inner_res // self.kernel_size[0]
         pos_w = self.inner_res // self.kernel_size[1]
