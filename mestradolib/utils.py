@@ -1,3 +1,5 @@
+import psutil
+import torch
 from PIL import Image, ImageDraw, ImageFont
 import os
 import numpy as np
@@ -138,3 +140,20 @@ def default_random_state(func_or_seed=None, *, seed=None):
     else:
         # Called as @default_random_state(1) (positional seed)
         return lambda func: decorator(func, func_or_seed)
+
+def show_memory_usage(header):
+    dados = dict()
+
+    process = psutil.Process(os.getpid())
+
+    dados["ram"] = process.memory_info().rss / 1024 ** 3
+    dados["vram_alocada_gb"] = (torch.cuda.memory_allocated() / 1024 ** 3)
+    dados["vram_reservada_gb"] = (torch.cuda.memory_reserved() / 1024 ** 3)
+
+    header = f"-------------------{header}---------------------"
+
+    print(header)
+    print(f"RAM: {dados['ram']:.2f} GB")
+    print(f"VRAM (alocada): {dados["vram_alocada_gb"]:.2f} GB")
+    print(f"VRAM (reservada): {dados['vram_reservada_gb']:.2f} GB")
+    print("-" * len(header))

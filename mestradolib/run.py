@@ -76,6 +76,8 @@ def process_problem(
 
         p_name += f" with EGrad"
 
+        print(f"Pré-processamento para {p_name} na imagem {i}: {poligons_extraction_end - poligons_extraction_start:.2f} segundos")
+
     problem.add_img(img)
     if save_files:
         create_folder_if_not_exists(f"{folder_name}/{i}/{p_name}")

@@ -15,7 +15,6 @@ from pymoo.core.result import Result
 from PIL import Image, ImageDraw
 import torch
 
-from mestradolib.grad_eclip import get_grad_eclip_poligons
 from mestradolib.mask import *
 from mestradolib.model import ModelWrapper, ModelWrapperOpenClip
 from mestradolib.sampling import PolygonSampling

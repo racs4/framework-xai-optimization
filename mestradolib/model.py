@@ -24,6 +24,8 @@ from transformers import CLIPProcessor, CLIPModel
 import clip
 import torch.nn.functional as F
 
+from mestradolib.utils import show_memory_usage
+
 
 def reproducibility(seed=42) -> None:
     random.seed(seed)
@@ -356,7 +358,7 @@ class ModelWrapperOpenClip(ModelWrapper):
         attn_output = attn_output_heads.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         attn_output_weights = attn_output_weights.view(bsz, num_heads, tgt_len, -1)
         attn_output_weights = attn_output_weights.sum(dim=1) / num_heads
-        return attn_output, attn_output_weights
+        return attn_output
 
     def clip_encode_dense(self, x, n):
         self.model.to(device=self.device)
@@ -379,8 +381,9 @@ class ModelWrapperOpenClip(ModelWrapper):
         tok_pos, img_pos = pos_embedding[:1, :], pos_embedding[1:, :]
         pos_h = self.inner_res // self.kernel_size[0]
         pos_w = self.inner_res // self.kernel_size[1]
-        assert img_pos.size(0) == (
-                    pos_h * pos_w), f"the size of pos_embedding ({img_pos.size(0)}) does not match resolution shape pos_h ({pos_h}) * pos_w ({pos_w})"
+
+        assert img_pos.size(0) == (pos_h * pos_w), f"the size of pos_embedding ({img_pos.size(0)}) does not match resolution shape pos_h ({pos_h}) * pos_w ({pos_w})"
+
         img_pos = img_pos.reshape(1, pos_h, pos_w, img_pos.shape[1]).permute(0, 3, 1, 2)
         img_pos = torch.nn.functional.interpolate(img_pos, size=(feah, feaw), mode='bicubic', align_corners=False)
         img_pos = img_pos.reshape(1, img_pos.shape[1], -1).permute(0, 2, 1)
@@ -391,7 +394,6 @@ class ModelWrapperOpenClip(ModelWrapper):
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = torch.nn.Sequential(*self.model.visual.transformer.resblocks[:-n])(x)
 
-        attns = []
         atten_outs = []
         vs = []
         qs = []
@@ -401,8 +403,7 @@ class ModelWrapperOpenClip(ModelWrapper):
             x = TR.ln_1(x_in)
             linear = torch._C._nn.linear
             q, k, v = linear(x, TR.attn.in_proj_weight, TR.attn.in_proj_bias).chunk(3, dim=-1)
-            attn_output, attn = self.attention_layer(q, k, v, 1)  # vision_heads=1
-            attns.append(attn)
+            attn_output = self.attention_layer(q, k, v, 1)  # vision_heads=1
             atten_outs.append(attn_output)
             vs.append(v)
             qs.append(q)
@@ -415,4 +416,4 @@ class ModelWrapperOpenClip(ModelWrapper):
         x = x.permute(1, 0, 2)  # LND -> NLD
         x = self.model.visual.ln_post(x)
         x = x @ self.model.visual.proj
-        return x, x_in, vs, qs, ks, attns, atten_outs, (feah, feaw)
+        return x, vs, qs, ks, atten_outs, (feah, feaw)

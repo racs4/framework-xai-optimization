@@ -1,3 +1,6 @@
+import gc
+import weakref
+
 import clip
 import torch
 import torch.nn.functional as F
@@ -8,6 +11,7 @@ from PIL import Image
 import numpy as np
 
 from mestradolib.model import ModelWrapperOpenClip
+from mestradolib.utils import show_memory_usage
 
 
 def imgprocess(img, patch_size=[16, 16], scale_factor=1):
@@ -37,13 +41,18 @@ def sim_qk(q, k):
 
 def grad_eclip(c, qs, ks, vs, attn_outputs, map_size):
     ## gradient on last attention output
-    tmp_maps = []
-    for q, k, v, attn_output in zip(qs, ks, vs, attn_outputs):
-        grad = torch.autograd.grad(
-            c,
-            attn_output,
-            retain_graph=True)[0]
+    grad = torch.autograd.grad(
+        c,
+        tuple(attn_outputs),
+        retain_graph=False,
+        create_graph=False
+    )[0]
 
+    tmp_maps = []
+
+    for i, (q, k, v, attn_output) in enumerate(
+        zip(qs, ks, vs, attn_outputs)
+    ):
         grad_cls = grad[:1,0,:]
         v_patch = v[1:,0,:]
         cosine_qk = sim_qk(q, k).reshape(-1)
@@ -180,26 +189,26 @@ def extract_polygons(gradmap, raw_image, n_var, threshold=0.01):
 
     return polygons
 
-def get_grad_eclip_poligons(img, modelWrapper: ModelWrapperOpenClip, threshold, n_var):
+def _get_grad_eclip_poligons_impl(img, modelWrapper: ModelWrapperOpenClip, threshold, n_var):
     img_preprocessed_k = imgprocess(img).cuda().unsqueeze(0) # Lowered resolution image
     # img_preprocessed_k = img # Original resolution image
-    outputs, last_feat, vs, qs, ks, attns, atten_outs, map_size = modelWrapper.clip_encode_dense(img_preprocessed_k, n=1)
+    outputs, vs, qs, ks, atten_outs, map_size = modelWrapper.clip_encode_dense(img_preprocessed_k, n=1)
 
-    text_processed = clip.tokenize(modelWrapper.labels).cuda()
-    text_embedding = modelWrapper.model.encode_text(text_processed)
-    text_embedding = F.normalize(text_embedding, dim=-1)
+    with torch.no_grad():
+        text_processed = clip.tokenize(modelWrapper.labels).cuda()
+        text_embedding = modelWrapper.model.encode_text(text_processed)
+        text_embedding = F.normalize(text_embedding, dim=-1)
+
     img_embedding = F.normalize(outputs[:, 0], dim=-1)
-
     cosine = (img_embedding @ text_embedding.T)[0]
 
-    grad_emaps = []
-    for i, c in enumerate(cosine):
-        grad_emaps.append(grad_eclip(c, qs, ks, vs, atten_outs, map_size))
-
     # Generate the grad only for the first label
-    tmp = grad_emaps[0].clone()
-    tmp -= tmp.min()
-    tmp /= tmp.max()
+    grad_emap = grad_eclip(cosine[0], qs, ks, vs, atten_outs, map_size)
+
+    with torch.no_grad():
+        tmp = grad_emap.clone()
+        tmp -= tmp.min()
+        tmp /= tmp.max()
 
     polygons = extract_polygons(
         tmp,
@@ -211,4 +220,16 @@ def get_grad_eclip_poligons(img, modelWrapper: ModelWrapperOpenClip, threshold, 
     if polygons is None:
         raise ValueError("None polygons detected!")
 
+    del grad_emap, tmp
+
     return polygons
+
+def get_grad_eclip_poligons(img, modelWrapper: ModelWrapperOpenClip, threshold, n_var):
+    try:
+        return _get_grad_eclip_poligons_impl(img, modelWrapper, threshold, n_var)
+
+    finally:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        gc.collect()
