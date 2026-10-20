@@ -26,7 +26,7 @@ if __name__ == "__main__":
         # )
         # model_wrapper = ModelWrapperFastAI(learner)
         # model_wrapper = ModelWrapperClip("openai/clip-vit-base-patch32", labels=["horn"])
-        model_wrapper = ModelWrapperOpenClip(labels=["horn"])
+        model_wrapper = ModelWrapperOpenClip(labels=["horn"]) # Adicionar label 'nulo' para poder calcular o fii
 
         # idxs = [337, 60]  # [1130, 0, 60, 99, 95, 63, 65, 455]
         idxs = np.random.randint(0, len(data.valid_ds), size=100)
@@ -82,31 +82,31 @@ if __name__ == "__main__":
         folder_name = f"results/results_imagenette_{learner_folder}"
         create_folder_if_not_exists(folder_name)
 
-        for _ in range(3):
-            run_test(
-                folder_name,
-                idxs,
-                problems,
-                model_wrapper,
-                data,
-                threshold=0.1,
-                parallel=False,
-                append=True,
-                save_files=True,
-                with_grad_start=False
-            )
-
-            run_test(
-                folder_name,
-                idxs,
-                problems,
-                model_wrapper,
-                data,
-                threshold=0.1,
-                parallel=False,
-                append=True,
-                save_files=True,
-                with_grad_start=True
-            )
+        # for _ in range(3):
+        #     run_test(
+        #         folder_name,
+        #         idxs,
+        #         problems,
+        #         model_wrapper,
+        #         data,
+        #         threshold=0.1,
+        #         parallel=False,
+        #         append=True,
+        #         save_files=True,
+        #         with_grad_start=False
+        #     )
+        #
+        #     run_test(
+        #         folder_name,
+        #         idxs,
+        #         problems,
+        #         model_wrapper,
+        #         data,
+        #         threshold=0.1,
+        #         parallel=False,
+        #         append=True,
+        #         save_files=True,
+        #         with_grad_start=True
+        #     )
 
     summarize_results(folder_name)

@@ -1,5 +1,7 @@
+import copy
 import traceback
 
+import scipy
 from pyrecorder.recorder import Recorder
 from pyrecorder.writers.video import Video
 from pymoo.visualization.scatter import Scatter
@@ -452,35 +454,82 @@ def summarize_results(folder_name):
 
     sumarize_by_idx(folder_name, results)
     sumarize_by_problem(folder_name, results)
+    print(calculate_estimated_n(results))
+
+def calculate_estimated_n(results):
+    diferences_by_idx = []
+    for key, problems in results.items():
+        diferences = [
+            float(np.mean(problems["IPHA-R"]["time"])) - float(np.mean(problems["IPHA-R with EGrad"]["time"])),
+            float(np.mean(problems["IPHA-P"]["time"])) - float(np.mean(problems["IPHA-P with EGrad"]["time"])),
+            float(np.mean(problems["IPHA-RI"]["time"])) - float(np.mean(problems["IPHA-RI with EGrad"]["time"])),
+            float(np.mean(problems["IPHA-PI"]["time"])) - float(np.mean(problems["IPHA-PI with EGrad"]["time"])),
+            float(np.mean(problems["IPHA-GA"]["time"])) - float(np.mean(problems["IPHA-GA with EGrad"]["time"]))
+        ]
+
+        diferences_by_idx.append(sum(diferences) / len(diferences))
+
+    sd_diference = np.std(diferences_by_idx)
+    z_alpha = 1.96
+    z_beta = 1.282
+    min_target_time_diference = 0.1
+
+    # Estimated number of images needed to execute a main experiment
+    estimated_n = ((z_alpha + z_beta) ** 2) * sd_diference ** 2 / min_target_time_diference ** 2
+
+    return float(estimated_n)
 
 def sumarize_by_idx(folder_name, results):
     with open(f"{folder_name}/results_summary_by_idx.csv", "w") as summary_file:
         summary_file.write(
             "idx,"
             "problem,"
+            "fii (mean),"
+            "fii (Margin Error),"
+            "fii (median),"
+            "fii (standard deviation),"
+            "fii (Q1),"
+            "fii (Q3),"
             "original_score,"
             # "best_score_black,"
             # "best_score_inpaint,"
             "best_score_cutting_black,"
             # "quantity_score_black,"
             # "quantity_score_inpaint,"
-            "quantity_score_cutting_black,"
+            # "quantity_score_cutting_black,"
             # "probability_score_black,"
             # "probability_score_inpaint,"
-            "probability_score_cutting_black,"
+            # "probability_score_cutting_black,"
             # "threshold,"
-            "time,"
+            "time (mean),"
+            "time (Margin Error),"
+            "time (median),"
+            "time (standard deviation),"
+            "time (Q1),"
+            "time (Q3),"
             # "best_area_black,"
             # "best_area_inpaint,"
             "best_area_cutting_black,"
             # "quantity_area_black,"
             # "quantity_area_inpaint,"
-            "quantity_area_cutting_black,"
+            # "quantity_area_cutting_black,"
             # "probability_area_black,"
             # "probability_area_inpaint,"
-            "probability_area_cutting_black,"
-            "egrad_poligons_time\n"
+            # "probability_area_cutting_black,"
+            "egrad_poligons_time (mean),"
+            "egrad_poligons_time (Margin Error),"
+            "egrad_poligons_time (median),"
+            "egrad_poligons_time (standard deviation),"
+            "egrad_poligons_time (Q1),"
+            "egrad_poligons_time (Q3),"
+            "total_time (mean),"
+            "total_time (Margin Error),"
+            "total_time (median),"
+            "total_time (standard deviation),"
+            "total_time (Q1),"
+            "total_time (Q3)\n"
         )
+
 
         for key, problems in results.items():
             for problem, fields in problems.items():
@@ -498,28 +547,50 @@ def sumarize_by_problem(folder_name, results):
     with open(f"{folder_name}/results_summary_by_problem.csv", "w") as summary_file:
         summary_file.write(
             "problem,"
+            "fii (mean),"
+            "fii (Margin Error),"
+            "fii (median),"
+            "fii (standard deviation),"
+            "fii (Q1),"
+            "fii (Q3),"
             "original_score,"
             # "best_score_black,"
             # "best_score_inpaint,"
             "best_score_cutting_black,"
             # "quantity_score_black,"
             # "quantity_score_inpaint,"
-            "quantity_score_cutting_black,"
+            # "quantity_score_cutting_black,"
             # "probability_score_black,"
             # "probability_score_inpaint,"
-            "probability_score_cutting_black,"
+            # "probability_score_cutting_black,"
             # "threshold,"
-            "time,"
+            "time (mean),"
+            "time (Margin Error),"
+            "time (median),"
+            "time (standard deviation),"
+            "time (Q1),"
+            "time (Q3),"
             # "best_area_black,"
             # "best_area_inpaint,"
             "best_area_cutting_black,"
             # "quantity_area_black,"
             # "quantity_area_inpaint,"
-            "quantity_area_cutting_black,"
+            # "quantity_area_cutting_black,"
             # "probability_area_black,"
             # "probability_area_inpaint,"
-            "probability_area_cutting_black,"
-            "egrad_poligons_time\n"
+            # "probability_area_cutting_black,"
+            "egrad_poligons_time (mean),"
+            "egrad_poligons_time (Margin Error),"
+            "egrad_poligons_time (median),"
+            "egrad_poligons_time (standard deviation),"
+            "egrad_poligons_time (Q1),"
+            "egrad_poligons_time (Q3),"
+            "total_time (mean),"
+            "total_time (Margin Error),"
+            "total_time (median),"
+            "total_time (standard deviation),"
+            "total_time (Q1),"
+            "total_time (Q3)\n"
         )
 
         problem_values = {}
@@ -530,9 +601,9 @@ def sumarize_by_problem(folder_name, results):
 
                 for field, values in fields.items():
                     if field not in problem_values[problem].keys():
-                        problem_values[problem][field] = values
+                        problem_values[problem][field] = copy.deepcopy(values)
                     else:
-                        problem_values[problem][field] += values
+                        problem_values[problem][field] += copy.deepcopy(values)
 
         for problem, values in problem_values.items():
             summary_file.write(f"{problem}")
@@ -551,6 +622,18 @@ def write_cells(fields, summary_file):
             mean = -1
 
         cell = f"{mean:.4f}" if mean >= 0 else " - "
+
+        if field in ("fii", "egrad_poligons_time", "time", "total_time") and values:
+            cl = 0.95 # Confidence Level
+
+            q1, median, q3 = np.percentile(values, [25, 50, 75], axis=0, method="nearest")
+            standard_deviation = np.std(values)
+
+            t = scipy.stats.t.ppf((1 + cl) / 2, len(values))
+            margin_error = t * (standard_deviation / np.sqrt(len(values))) # Margin Error to 95% confidence interval
+
+            cell += f",{float(margin_error):.4f},{median:.4f},{float(standard_deviation):.4f},{q1:.4f},{q3:.4f}"
+
         summary_file.write(f",{cell}")
 
 def process_result_file(folder_name, results):
@@ -583,6 +666,9 @@ def process_result_file(folder_name, results):
                 egrad_poligons_time
             ) = result.split(",")
 
+            if idx == "idx":
+                continue
+
             key = f"{idx}"
 
             if key not in results.keys():
@@ -592,16 +678,17 @@ def process_result_file(folder_name, results):
                 results[key][problem] = {}
 
             values = {
+                "fii": abs(float(original_score) - float(best_score_cutting_black)),
                 "original_score": original_score,
                 # "best_score_black": best_score_black,
                 # "best_score_inpaint": best_score_inpaint,
                 "best_score_cutting_black": best_score_cutting_black,
                 # "quantity_score_black": quantity_score_black,
                 # "quantity_score_inpaint": quantity_score_inpaint,
-                "quantity_score_cutting_black": quantity_score_cutting_black,
+                # "quantity_score_cutting_black": quantity_score_cutting_black,
                 # "probability_score_black": probability_score_black,
                 # "probability_score_inpaint": probability_score_inpaint,
-                "probability_score_cutting_black": probability_score_cutting_black,
+                # "probability_score_cutting_black": probability_score_cutting_black,
                 # "threshold": threshold,
                 "time": time,
                 # "best_area_black": best_area_black,
@@ -609,11 +696,12 @@ def process_result_file(folder_name, results):
                 "best_area_cutting_black": best_area_cutting_black,
                 # "quantity_area_black": quantity_area_black,
                 # "quantity_area_inpaint": quantity_area_inpaint,
-                "quantity_area_cutting_black": quantity_area_cutting_black,
+                # "quantity_area_cutting_black": quantity_area_cutting_black,
                 # "probability_area_black": probability_area_black,
                 # "probability_area_inpaint": probability_area_inpaint,
-                "probability_area_cutting_black": probability_area_cutting_black,
-                "egrad_poligons_time": egrad_poligons_time
+                # "probability_area_cutting_black": probability_area_cutting_black,
+                "egrad_poligons_time": egrad_poligons_time,
+                "total_time": float(time) + float(egrad_poligons_time)
             }
 
             for field, value in values.items():
