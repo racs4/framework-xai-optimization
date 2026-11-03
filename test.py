@@ -26,7 +26,7 @@ if __name__ == "__main__":
         # )
         # model_wrapper = ModelWrapperFastAI(learner)
         # model_wrapper = ModelWrapperClip("openai/clip-vit-base-patch32", labels=["horn"])
-        model_wrapper = ModelWrapperOpenClip(labels=["horn"]) # Adicionar label 'nulo' para poder calcular o fii
+        model_wrapper = ModelWrapperOpenClip(labels=["horn", "something else"])
 
         # idxs = [337, 60]  # [1130, 0, 60, 99, 95, 63, 65, 455]
         idxs = np.random.randint(0, len(data.valid_ds), size=100)

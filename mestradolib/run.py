@@ -6,6 +6,7 @@ from pyrecorder.recorder import Recorder
 from pyrecorder.writers.video import Video
 from pymoo.visualization.scatter import Scatter
 from joblib import Parallel, delayed
+from scipy import stats
 from tqdm import tqdm
 from mestradolib.grad_eclip import get_grad_eclip_poligons
 from mestradolib.model import *
@@ -448,27 +449,22 @@ def run_test(
                         error_file.write(f"Error processing image {i}: {e}\n")
                     continue
 
+def print_estimated_n(print_text, results, field):
+    print("-"*100)
+    print(print_text, calculate_estimated_n(results, field))
+
 def summarize_results(folder_name):
     results = dict()
     process_result_file(folder_name, results)
 
     sumarize_by_idx(folder_name, results)
     sumarize_by_problem(folder_name, results)
-    print(calculate_estimated_n(results))
 
-def calculate_estimated_n(results):
-    diferences_by_idx = []
-    for key, problems in results.items():
-        diferences = [
-            float(np.mean(problems["IPHA-R"]["time"])) - float(np.mean(problems["IPHA-R with EGrad"]["time"])),
-            float(np.mean(problems["IPHA-P"]["time"])) - float(np.mean(problems["IPHA-P with EGrad"]["time"])),
-            float(np.mean(problems["IPHA-RI"]["time"])) - float(np.mean(problems["IPHA-RI with EGrad"]["time"])),
-            float(np.mean(problems["IPHA-PI"]["time"])) - float(np.mean(problems["IPHA-PI with EGrad"]["time"])),
-            float(np.mean(problems["IPHA-GA"]["time"])) - float(np.mean(problems["IPHA-GA with EGrad"]["time"]))
-        ]
+    print_estimated_n("Estimade n for time: ", results, "time")
+    print_estimated_n("Estimade n for time (total): ", results, "total_time")
+    print_estimated_n("Estimade n for FII: ", results, "fii")
 
-        diferences_by_idx.append(sum(diferences) / len(diferences))
-
+def t_paired_test(diferences_by_idx):
     sd_diference = np.std(diferences_by_idx)
     z_alpha = 1.96
     z_beta = 1.282
@@ -478,6 +474,39 @@ def calculate_estimated_n(results):
     estimated_n = ((z_alpha + z_beta) ** 2) * sd_diference ** 2 / min_target_time_diference ** 2
 
     return float(estimated_n)
+
+def normal_approximation_central_limit_theorem(diferences_by_idx):
+    sigma = np.std(diferences_by_idx)  # Estimated standard deviation of the population
+    e = 0.1  # Tolerable margin error
+    confidence = 0.95
+
+    # Critical value Z for 95% confidence
+    z = stats.norm.ppf(1 - (1 - confidence) / 2)
+
+    n = (z * sigma / e) ** 2
+
+    return float(n)
+
+def calculate_estimated_n(results, field):
+    diferences_by_idx = []
+    for key, problems in results.items():
+        diferences = [
+            float(np.mean(problems["IPHA-R"][field])) - float(np.mean(problems["IPHA-R with EGrad"][field])),
+            float(np.mean(problems["IPHA-P"][field])) - float(np.mean(problems["IPHA-P with EGrad"][field])),
+            float(np.mean(problems["IPHA-RI"][field])) - float(np.mean(problems["IPHA-RI with EGrad"][field])),
+            float(np.mean(problems["IPHA-PI"][field])) - float(np.mean(problems["IPHA-PI with EGrad"][field])),
+            float(np.mean(problems["IPHA-GA"][field])) - float(np.mean(problems["IPHA-GA with EGrad"][field]))
+        ]
+
+        diferences_by_idx.append(sum(diferences) / len(diferences))
+
+    stat, p_value = stats.shapiro(diferences_by_idx)
+    print(f"Statistic ({field}): {stat:.5f}, p-value ({field}): {p_value:.5f}")
+
+    if p_value > 0.05:
+        return t_paired_test(diferences_by_idx)
+    else:
+        return normal_approximation_central_limit_theorem(diferences_by_idx)
 
 def sumarize_by_idx(folder_name, results):
     with open(f"{folder_name}/results_summary_by_idx.csv", "w") as summary_file:
